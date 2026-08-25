@@ -1,0 +1,19 @@
+# Written by the agf-integrator skill's Step 6 into the target repo.
+# Values below are illustrative placeholders — fill with the target repo's real settings.
+# NON-SECRET ONLY (see Step 0 / references/readiness.md) — never put an AGF token/API key
+# here or anywhere else this skill writes. The credential lives in the target repo's own
+# secret mechanism (.env, environment variables, Docker secrets, CI/CD secrets, cloud secret
+# manager), configured by the user, never by this skill.
+
+agent_id: "<!-- did:agf:... or the target repo's real agent identifier -->"
+base_url: "<!-- agf-runtime base URL, e.g. http://localhost:8004 -->"
+audience: "agf"
+
+# Maps each governed tool/action to its agf-sdk action_type/resource strings, matching what
+# was actually wired in the approved integration plan. Keep in sync with the code — this file
+# is documentation of what's governed, not a source of truth the code reads from at runtime
+# unless the target repo's own implementation chooses to load it that way.
+actions:
+  - name: "<!-- tool function name -->"
+    action_type: "<!-- e.g. tool:issue_refund -->"
+    resource: "<!-- e.g. issue_refund -->"

@@ -6,19 +6,26 @@ Goal: produce evidence of what was actually wired, checked against the target re
 current state after Step 6 — not against what the plan said it would do. This is the step
 that makes the Hard Rule concrete: a claim without evidence is not verification.
 
+**Corrected 2026-08-25** after a live test against a real local `agf-runtime` found the
+original "Capability gaps" list was wrong: execution-time validation and revocation testing are
+both real, achievable capabilities (`guard_tool(..., validate_execution=True)`, confirmed live)
+— they moved into Required verification. Also: `chain=`/Authority is not just "usually unclosed
+because the target repo lacks a delegation source" — a bare API key with no chain at all causes
+`/v1/decide` to return **422**, not a degraded decision. Check for this specifically.
+
 ## Two kinds of checklist item — don't conflate them
 
-**Required verification** covers everything `agf-sdk`'s real `authorize()`/`guard_tool()`
-surface can support today — whether each one is actually closed depends on the *target repo*
-and the *approved plan*, not on any SDK limitation. Score these normally (Present/Partial/
-Missing, per what Step 6 actually did).
+**Required verification** covers everything `agf-sdk`'s real API surface can support today —
+Decision, Actor, Authority (including a self-signed `chain_provider`, which is a real, legitimate
+way to close it), Execution-time validation, Deny-path, Revocation. Whether each one is actually
+closed depends on the *target repo* and the *approved plan*, not on an SDK limitation. Score
+these normally (Present/Partial/Missing, per what Step 6 actually did).
 
-**Capability gaps** covers things `agf-sdk` has no client method for at all (execution-time
-validation, receipts, and anything that depends on those) — these are **not** MVP failures to
-investigate per-repo; they're a fixed ceiling that applies to every integration this skill
-performs until `agf-sdk` grows the missing client surface. Keep them in a visually separate
-section of the report so a reader doesn't have to figure out which kind of "Missing" they're
-looking at.
+**Capability gaps** now covers only **Receipt** and anything that depends on it (Decision↔Receipt
+correlation) — `agf-sdk` genuinely has no client method for either (confirmed: no `receipt`-named
+symbol anywhere in `agf-sdk/agf/*.py`). This is the one remaining fixed ceiling. Keep it in a
+visually separate section of the report so a reader doesn't have to figure out which kind of
+"Missing" they're looking at.
 
 ## How to check each item (don't just assert — trace it)
 
@@ -27,17 +34,27 @@ looking at.
 - **Actor identified**: open each modified call site; confirm a real per-caller identity
   (not a hardcoded constant, unless that was explicitly justified in the plan) is passed into
   the `agf-sdk` call.
-- **Authority identified/attached**: confirm whether a `chain=` was actually passed, or whether
-  this remains a static-key-only setup (if so, report Authority as still not closed — see
-  `references/implement-fastapi-mcp.md`'s "what this closes" section). This is checked, not
-  assumed unavailable — `guard_tool`/`authorize()` both accept `chain=` today; it's usually
-  unclosed because the target repo has no real delegation source, not because the SDK lacks it.
+- **Authority identified/attached**: confirm a `chain_provider=` (not a static `chain=` — those
+  expire in 300s, see `references/implement-fastapi-mcp.md`) is wired and actually builds a
+  fresh self-signed chain per call via `build_self_signed_chain()`, backed by a persisted
+  private key from a completed one-time `register_agent()` enrollment. If none of that exists —
+  bare `agent_id=` with no chain mechanism at all — this doesn't just leave Authority unclosed,
+  it means the integration will hard-fail with a 422 the moment it's actually invoked. Report
+  that distinction explicitly: "Authority: Missing — AND the Decision call itself cannot
+  succeed without one" is a materially different finding from "Authority: Missing, Decision
+  still works."
 - **Action identified**: confirm the action/resource strings passed to the `agf-sdk` call
   correctly correspond to the real function/route — a trivial check, but worth stating plainly
   rather than skipping.
 - **Decision enforced**: confirm the `guard_tool`/`authorize()` call sits on the actual
   execution path — i.e. the guarded function cannot run without it, not that the call merely
-  exists somewhere nearby unused.
+  exists somewhere nearby unused. If there's no working chain mechanism (see Authority above),
+  do not mark this Present on code-structure alone — a call that will 422 on every real
+  invocation is not a functioning Decision gate; verify the chain-building path is real too.
+- **Execution-time validation**: confirm `validate_execution=True` is passed to `guard_tool()`
+  (or `client.validate_execution(artifact_id)` is called directly after `authorize()`/`decide()`
+  for a non-decorator integration). Real, live-verified capability — there is no SDK reason to
+  leave this unclosed; if it's missing, that's a plan/implementation gap, not unavailable.
 - **Execution gated**: same evidence as Decision enforced — confirms the guard structurally
   wraps the real call site for every modified action, not just one of them.
 - **Deny path tested**: run (or ask the user to run) a call with an identity/action that should
@@ -46,25 +63,21 @@ looking at.
   configured>" — rather than marking this Present on structural evidence alone. If Step 0
   reported READY but the run wasn't actually attempted for some other reason, say "not tested:
   <reason>" instead — don't default to the Step 0 phrasing when it isn't the actual cause.
+- **Revocation test**: with execution-time validation wired, this is genuinely testable — revoke
+  the agent (or let its self-signed chain expire) and confirm a subsequent call's
+  `validate_execution()` re-check blocks it. If untested, say so; don't infer it from Decision
+  being present.
 - **Existing application tests still pass**: actually run the target repo's test suite if one
   exists and report the real result; if none exists, say so rather than marking this N/A as if
   it were a pass.
 
 ### Capability gaps (fixed MVP ceiling, not a per-repo finding)
 
-- **Execution-time validation**: "Not implemented — SDK capability unavailable" unless
-  `references/sdk-gap-fallback.md` was used and its call is actually wired at dispatch time, in
+- **Receipt generated**: "Not implemented — SDK capability unavailable" unless
+  `references/sdk-gap-fallback.md` was used and a confirmed real endpoint was actually wired, in
   which case check it like any Required-verification item instead.
-- **Receipt generated**: "Not implemented — SDK capability unavailable" under the same
-  condition/exception as above.
 - **Decision↔Receipt correlation**: "Not verifiable in MVP" — depends on Receipt existing at
-  all; only becomes checkable once Receipt does (via the fallback).
-- **Revocation test**: "Not verifiable in MVP" — testing revocation means confirming a
-  mid-session change blocks a subsequent dispatch, which is exactly what execution-time
-  validation checks; with no execution-time validation wired, there's no mechanism to test
-  against. Only becomes checkable once execution-time validation does (via the fallback). If
-  it would otherwise be checkable (fallback used) but Step 0 reported BLOCKED, use the
-  BLOCKED phrasing from the Deny-path item above instead.
+  all; only becomes checkable once Receipt does.
 
 ## Coverage count
 

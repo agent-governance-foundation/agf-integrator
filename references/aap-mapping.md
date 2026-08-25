@@ -19,9 +19,13 @@ Look for: a resolvable agent/user id passed into or derivable at the call site (
 process, not who's acting through it.
 
 **Authority** (spec §3.2) — the scoped, attributable grant that lets the Actor act.
-Look for: any delegation chain, JWT, or expiring/scoped credential specific to this action.
-A blanket "the process has an API key so anything it does is allowed" is NOT Authority — it's
-the absence of scoping.
+Look for: any delegation chain, JWT, or expiring/scoped credential specific to this action. A
+self-signed single-hop chain (`agf.keys.build_self_signed_chain()`, per an enrolled
+`register_agent()` keypair) counts — it's a real, minimal Authority object, just self-attested
+rather than delegated from a separate issuer; note which kind it is. A blanket "the process has
+an API key so anything it does is allowed" with **no chain mechanism at all** is NOT Authority
+— it's the absence of scoping, and (live-confirmed) it also means the underlying
+`agf-sdk` decide/authorize call cannot succeed at all, not just that it's unscoped.
 
 **Action** (spec §3.3) — the verb + target being performed.
 Usually the easiest to map: it's the function name / route + its parameters. Note it plainly;

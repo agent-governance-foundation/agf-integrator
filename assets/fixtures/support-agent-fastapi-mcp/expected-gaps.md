@@ -4,6 +4,11 @@ Hand-written golden reference for `references/self-test.md` step 1. When running
 the skill against `server.py`, the produced report should match this, modulo wording — the
 Present/Partial/Missing verdicts and reasons must match; exact prose does not need to.
 
+**Corrected 2026-08-25** after a live test found `issue_refund()`'s baseline `guard_tool()` call
+(no `chain=`/`chain_provider=`) would actually 422 on every real invocation — Decision was
+wrongly scored Present for it before this correction. See
+`references/implement-fastapi-mcp.md` for the full finding.
+
 ## Before any implementation (initial run)
 
 ```
@@ -23,33 +28,38 @@ update_ticket() — server.py:32
 
 issue_refund() — server.py:39
   Actor:                Partial — agent_id is passed, but it's a static constant, not a real per-caller identity
-  Authority:            Missing — no chain= passed, only a static API key on the client
-  Decision:             Present — guard_tool() is wired and gates the call
+  Authority:            Missing — no chain= or chain_provider= passed, only a static API key on the client
+  Decision:             Missing — guard_tool() IS wired, but with no chain mechanism at all it
+                         will return a live 422 on every real invocation, not a functioning
+                         ALLOW/DENY gate. Do not score this Present just because the decorator
+                         is structurally present — see references/gap-analysis.md's Authority
+                         scoring note.
   Receipt:              Missing — no correlated receipt
   Execution-validation: Missing — no re-check between decision and dispatch
 ```
 
-## After Step 6 implements the plan (regression-check run, see self-test.md step 6)
+## After Step 6 implements the corrected plan (regression-check run, see self-test.md step 6)
 
-Assuming the plan closed Decision (and, where possible, Actor) for `search_customer` and
-`update_ticket` using the same `guard_tool` pattern already present on `issue_refund`, and did
-NOT add Authority scoping, Receipt, or Execution-validation anywhere (those remain out of
-scope per the SDK gap — see `references/sdk-gap-fallback.md`):
+Assuming the plan closes Decision + Authority + Execution-validation for all three actions
+using the real, corrected pattern (one-time enrollment, `chain_provider=`,
+`validate_execution=True` — see `references/implement-fastapi-mcp.md`), and does NOT add
+Receipt (the one remaining genuine SDK gap):
 
 ```
-search_customer() — Actor: Present (assuming a real id was threaded through) or Partial (if a
-                     static constant was used, same caveat as issue_refund) | Decision: Present
-update_ticket()   — Actor: Present/Partial (same caveat) | Decision: Present (now AGF-backed,
-                     the ad-hoc role check may remain alongside it or be removed per the plan)
-issue_refund()    — unchanged from before, since it already had Decision wired
+All three actions — Decision: Present (chain_provider wired, live-verified pattern)
+                     Authority: Present — self-signed single-hop chain (self-attested, not a
+                                delegated chain from a separate issuer — say so explicitly)
+                     Execution-validation: Present (validate_execution=True wired)
+                     Actor: Present/Partial depending on whether a real per-caller id exists
+                     (this fixture has none — service-level identity, same caveat as before)
 
 All three:
-  Authority:            still Missing — not addressed by this profile's default codegen
-  Receipt:               still Missing — no agf-sdk client method exists
-  Execution-validation:  still Missing — no agf-sdk client method exists
+  Receipt: still Missing — no agf-sdk client method exists (the one remaining genuine gap)
 ```
 
-If a regression-check run instead shows Receipt or Execution-validation as Present without
-`sdk-gap-fallback.md` having been explicitly used, that is a bug — the skill has false-positived
-"governed" purely because `agf-sdk` is imported, which is exactly what the Honesty Rules exist
-to prevent.
+If a regression-check run shows Receipt as Present without `sdk-gap-fallback.md` having been
+explicitly used (and a confirmed real endpoint found), that is a bug — the skill has
+false-positived "governed" purely because `agf-sdk` is imported, which is exactly what the
+Honesty Rules exist to prevent. Equally, if Decision/Authority/Execution-validation are scored
+Missing/Partial despite `chain_provider=`/`validate_execution=True` actually being wired
+correctly, that's the opposite bug — under-crediting a real, working capability.

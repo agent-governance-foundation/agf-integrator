@@ -24,6 +24,18 @@ signal for this report and replaces it as the fifth scored column.
 
 Never mark Present on the strength of an import statement alone (Honesty Rules, SKILL.md).
 
+**Authority scoring note (corrected 2026-08-25, live-verified)**: a self-signed single-hop
+chain (`agf.keys.build_self_signed_chain()`, backed by a `register_agent()`-enrolled keypair)
+is a real, legitimate way to score Authority Present — not just "no delegation chain, static
+key only." If a target repo already has this wired, score it Present and note it's
+self-attested (not a multi-hop delegation from a separate issuer). If a target has an
+`agf-sdk` call with **no** chain mechanism at all — bare `agent_id=` and nothing else — that's
+worse than Authority: Missing alone: live-confirmed, `/v1/decide` requires a non-empty `chain`
+or a `trust_summary` and returns **422** without either, meaning **Decision can't function at
+all**, not just "Decision present, Authority absent." Score Decision as Missing in that case
+too (a call that will error on every real invocation isn't a working Decision gate), and say so
+explicitly in the reason.
+
 ## Output format
 
 One block per discovered action, worked example shape (matches the pattern of a support-agent

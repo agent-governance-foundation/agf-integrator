@@ -30,16 +30,21 @@ skill governs agent tool-call surfaces, not general APIs.
 
 Continue to Step 5. The relevant real `agf-sdk` surface for this profile is:
 
-- `agf.mcp.guard_tool(client, *, agent_id, action_type=None, resource=None, audience="agf", chain=None, chain_provider=None)`
+- `agf.mcp.guard_tool(client, *, agent_id, action_type=None, resource=None, audience="agf", chain=None, chain_provider=None, validate_execution=False)`
   — a decorator, applied *between* `def` and `@mcp.tool()` (closer to `def`) so FastMCP's
   schema introspection sees the fully-wrapped function. Real signature, verified directly
-  against `agf-sdk/agf/mcp.py`.
+  against `agf-sdk/agf/mcp.py`. **`chain`/`chain_provider` are not optional in practice** — a
+  bare `agent_id=` with neither returns a live 422 from `agf-runtime` (`/v1/decide` requires a
+  non-empty `chain` or a `trust_summary`); a static `chain=` also fails once it expires (5
+  minutes for a self-signed chain). Use `chain_provider=` per `references/implement-fastapi-mcp.md`.
 - `agf.AgentGovernance.authorize(agent_id, action, resource, *, chain=None, audience="agf", context=None) -> AuthResult`
   — the lower-level call `guard_tool` wraps, useful when a FastAPI route (not an MCP tool)
   needs a direct decision check instead of the decorator. Real signature, verified directly
-  against `agf-sdk/agf/govern.py`.
+  against `agf-sdk/agf/govern.py`. `AgentGovernance(private_key_pem=...)` self-signs its chain
+  automatically per call — simpler than manual `chain_provider` wiring for plain routes.
 
-See `references/implement-fastapi-mcp.md` for concrete before/after code using these.
+See `references/implement-fastapi-mcp.md` for concrete before/after code using these, including
+the one-time agent enrollment these calls depend on.
 
 ## If it doesn't match
 

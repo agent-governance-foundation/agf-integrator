@@ -24,6 +24,14 @@ rules that matter most in practice:
   that plainly: "no per-caller identity exists; the Actor established here represents the
   deployed service itself." That is a legitimate, honest Actor — it's just not a human
   end-user, and the plan must say which one it is rather than leaving it ambiguous.
+- **Always include agent enrollment as an explicit plan step, not an assumption.** A
+  `guard_tool()`/`authorize()` call with no working chain mechanism doesn't just leave Authority
+  unclosed — it 422s on every real invocation (live-confirmed). The plan must propose: (1) a
+  one-time enrollment step (`generate_keypair()` + `register_agent()`, written as a small setup
+  script, not folded into the guarded server's request path), (2) a `chain_provider=` wired per
+  guarded call (never a static `chain=` — self-signed chains expire in 5 minutes), and (3) where
+  the persisted private key will live (same secret-mechanism question as the API token — see
+  Step 0). See `references/implement-fastapi-mcp.md` for the exact pattern.
 
 ## Rendering the plan
 
@@ -60,12 +68,17 @@ Step 6. Treat anything short of an explicit "yes, proceed" / "approved" as not a
 if the user asks questions, answer them and re-present, don't infer approval from silence or
 a tangential reply.
 
-## If the user asks for execution-validation or receipts to be included
+## Execution-time validation is not a fallback — include it by default
 
-`agf-sdk` has no client method for either today (see SKILL.md Honesty Rules and the grounding
-notes in this skill's own history). If the user, having been told this, still wants it
-included in the plan anyway, read `references/sdk-gap-fallback.md` now and add those entries
-to the plan clearly labeled:
+`validate_execution=True` on `guard_tool()` is a real, live-verified capability (corrected
+2026-08-25 — see SKILL.md Honesty Rules). Include it in the plan for every guarded action by
+default; there's no reason to omit it now.
+
+## If the user asks for receipts to be included
+
+`agf-sdk` has no client method for this today (the one remaining genuine gap — see SKILL.md
+Honesty Rules). If the user, having been told this, still wants it included in the plan anyway,
+read `references/sdk-gap-fallback.md` now and add those entries to the plan clearly labeled:
 
 ```
 NOTE: this entry uses a hand-written HTTP fallback, not a supported agf-sdk client method.

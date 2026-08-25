@@ -10,22 +10,23 @@ Whether each item is actually closed depends on this target repo and the approve
 any SDK limitation.
 
 - [ ] Actor identified — <!-- how, and how verified -->
-- [ ] Authority identified/attached — <!-- how, and how verified -->
+- [ ] Authority identified/attached — <!-- confirm a chain_provider (not a static chain=) is wired, backed by a persisted private key from a completed one-time enrollment; note explicitly if self-signed vs. a real delegated chain -->
 - [ ] Action identified — <!-- confirms action/resource strings match the real function/route -->
-- [ ] Decision enforced — <!-- how, and how verified -->
+- [ ] Decision enforced — <!-- how, and how verified; do not mark Present if there's no working chain mechanism — an unchained guard_tool() call 422s on every real invocation -->
+- [ ] Execution-time validation — <!-- confirms validate_execution=True (or a direct validate_execution() call) is wired -->
 - [ ] Execution gated — <!-- confirms guard sits on the real execution path -->
 - [ ] Deny path tested — <!-- result; or "BLOCKED — see Step 0: <missing piece>" if Step 0 reported BLOCKED; or "not tested: <reason>" for any other cause -->
+- [ ] Revocation test passed — <!-- result, or "not tested: <reason>" -- genuinely testable now via execution-time validation, not a fixed gap -->
 - [ ] Existing application tests still pass — <!-- actual test-run result, or "no test suite found" -->
 
 ## Capability gaps (fixed MVP ceiling — not a finding about this repo)
 
-`agf-sdk` has no client method for any of these today, so they cannot be closed by this skill
-regardless of the target repo, unless `references/sdk-gap-fallback.md` was explicitly used.
+`agf-sdk` has no client method for either of these today, so they cannot be closed by this
+skill regardless of the target repo, unless `references/sdk-gap-fallback.md` was explicitly used
+and a confirmed real endpoint was found.
 
-- [ ] Execution-time validation — <!-- "Not implemented — SDK capability unavailable", unless sdk-gap-fallback.md used, in which case verify like a Required-verification item -->
-- [ ] Receipt generated — <!-- "Not implemented — SDK capability unavailable", same exception as above -->
+- [ ] Receipt generated — <!-- "Not implemented — SDK capability unavailable", unless sdk-gap-fallback.md found a confirmed real endpoint -->
 - [ ] Decision <-> Receipt correlation verified — <!-- "Not verifiable in MVP" — depends on Receipt existing -->
-- [ ] Revocation test passed — <!-- "Not verifiable in MVP" — depends on Execution-time validation existing; if that's addressed via sdk-gap-fallback.md but Step 0 reported BLOCKED, use "BLOCKED — see Step 0: <missing piece>" instead -->
 
 ## Coverage
 
@@ -45,6 +46,8 @@ Deferred (by user choice, not addressed in this pass):
 ## Status
 
 <!-- one of: FULL | PARTIAL (see gaps above) | NOT INTEGRATED -->
-Use exactly one of these three words — never "compliant"/"non-compliant" or similar. Given the
-Capability-gap ceiling (see above), FULL will rarely if ever be the honest answer for this MVP;
-default to PARTIAL and let the checklist above speak for itself rather than stretching for FULL.
+Use exactly one of these three words — never "compliant"/"non-compliant" or similar. With only
+Receipt/correlation as a genuine fixed gap now, FULL is achievable for Required-verification —
+but Receipt/correlation being unclosed still caps the overall status at PARTIAL. Don't stretch
+FULL to cover a repo where Receipt remains open; PARTIAL is still the honest ceiling until
+`agf-sdk` gains a receipt client method.

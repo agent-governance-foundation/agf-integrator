@@ -16,8 +16,11 @@ throughout this skill's own reference docs:
 
 - `search_customer` — no guard at all (fully ungoverned)
 - `update_ticket` — an ad-hoc role check only, no AGF Decision
-- `issue_refund` — already has `guard_tool` wired (Decision present), but no Authority scoping,
-  no Receipt, no Execution-validation
+- `issue_refund` — already has `guard_tool` wired with **no `chain=`/`chain_provider=`** — a
+  live-confirmed non-functioning gate (422 on every real call), corrected 2026-08-25. This is
+  now the fixture's sharpest test: does Step 3 correctly score its Decision as Missing (not
+  Present) despite the decorator's structural presence? See `references/gap-analysis.md`'s
+  Authority scoring note.
 
 `assets/fixtures/support-agent-fastapi-mcp/expected-gaps.md` records the hand-written expected
 Step 3 output for this fixture — the closest available thing to a golden file.

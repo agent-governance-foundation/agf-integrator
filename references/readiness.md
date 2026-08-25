@@ -32,6 +32,14 @@ that gap gets surfaced up front instead of discovered awkwardly at the end.
   `AGF_TOKEN` or `AGF_API_KEY`) already wired into a client construction call? Check for the
   *variable name* being referenced in code — **never read, print, or log the actual value**,
   even if it happens to be accessible in this environment.
+- **Agent private key / enrollment**: is there an env var reference for a persisted agent
+  private key (commonly `AGF_AGENT_PRIVATE_KEY`), and evidence the corresponding public key was
+  ever registered (a `register_agent(...)` call, or a note that enrollment was done via a
+  separate one-time script)? This is a **second, distinct secret from the API token** — required
+  for `guard_tool()`/`authorize()` to succeed at all (see `references/implement-fastapi-mcp.md`;
+  live-confirmed: without a working chain mechanism, `/v1/decide` returns 422, not a degraded
+  decision). Missing this isn't just an Authority gap — it means the Decision call itself cannot
+  function. Report that distinction explicitly, don't fold it into a generic "Authority: Missing."
 - **Not hardcoded**: grep the target repo for anything that looks like a literal API key/token
   string (e.g. a long random-looking string assigned directly to an `api_key=`/`token=`
   argument instead of an `os.environ[...]`/`os.getenv(...)` call). A hardcoded credential is a
@@ -59,13 +67,16 @@ Agent identity:
 
 Credentials:
   [check-or-x] Credential source found (env var name only: <NAME>) | AGF token not configured
+  [check-or-x] Agent private key / enrollment found (env var name only, evidence of register_agent) | Not configured — Decision calls will 422 without this
   [check-or-x] Not hardcoded anywhere in source
   [check-or-x] Not exposed via a missing .gitignore entry
 
 Status:
   READY | BLOCKED — <specifically what's blocked: "Step 7 live verification (Deny-path,
-  Revocation) cannot run without a configured credential" — never phrase this as blocking
-  Steps 1-6>
+  Revocation) cannot run without a configured credential" if only the API token is missing; or
+  "guard_tool()/authorize() calls will fail with a 422 on every real invocation, not just be
+  unverifiable" if the agent private key/enrollment is also missing — never phrase either as
+  blocking Steps 1-6>
 ```
 
 ## If credentials are missing
@@ -80,13 +91,17 @@ AGF_BASE_URL=<agf-runtime base URL, e.g. http://localhost:8004 for dev>
 AGF_AGENT_ID=<this integration's agent identifier>
 ```
 
-**Never written by this skill** (the actual secret — point at whatever secret mechanism the
+**Never written by this skill** (two distinct secrets — point at whatever secret mechanism the
 target repo already uses, don't assume `.env` if something else is evident: Docker secrets,
 CI/CD secret store, a cloud secret manager):
 ```
 AGF_TOKEN=<the user's real AGF API key, configured through the repo's existing secret
 mechanism — .env (gitignored), environment variables, Docker secrets, CI/CD secrets, or a
 cloud secret manager, whichever this repo already uses or the user prefers>
+
+AGF_AGENT_PRIVATE_KEY=<generated once via agf.generate_keypair(), the public half registered
+once via a one-time enrollment step (see references/implement-fastapi-mcp.md) — persisted and
+reused across restarts, never regenerated per process start, never hardcoded or committed>
 ```
 
 ## What this does and doesn't gate

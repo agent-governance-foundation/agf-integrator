@@ -8,15 +8,26 @@ description: "Use when integrating an AI-agent codebase (FastAPI + MCP agents; m
 ## What this skill is for
 
 **Discover, integrate, and verify AGF authorization in supported AI-agent codebases.** That is
-the whole promise — not "make the agent AGF compliant." This MVP has a real architectural
-ceiling (no `agf-sdk` client surface for execution-time validation or receipts; see Capability
-gaps in Step 7), so this skill never claims full compliance as an outcome. Its output describes
-exactly what's integrated and what isn't — nothing more, nothing rounded up.
+the whole promise — not "make the agent AGF compliant." This MVP has one real architectural
+ceiling left (no `agf-sdk` client surface for receipts; see Capability gaps in Step 7), so this
+skill never claims full compliance as an outcome. Its output describes exactly what's
+integrated and what isn't — nothing more, nothing rounded up.
+
+**Corrected 2026-08-25** after a live test against a real local `agf-runtime` found two errors
+in this skill's earlier self-understanding: (1) execution-time validation
+(`validate_execution=True`) is a real, working capability, not a gap — it was wrongly listed as
+one from an incorrect initial grep. (2) More seriously: `guard_tool()`/`authorize()` with a bare
+`agent_id=` and no chain mechanism doesn't just leave Authority unclosed — `/v1/decide` returns
+**422** without a chain or trust_summary, meaning every integration this skill generated before
+this correction would fail in production. See `references/implement-fastapi-mcp.md` for the
+corrected, live-verified pattern (self-signed chain via `chain_provider=`, one-time agent
+enrollment).
 
 Takes an existing AI-agent codebase (a target repo — not this skill's own files) and:
 
 0. Checks whether the environment has what a real integration needs — `agf-sdk`, a runtime
-   URL, an agent identity, a credential source — without ever inventing or writing a secret
+   URL, an agent identity, an API token, AND a persisted agent private key from a completed
+   enrollment — without ever inventing or writing a secret
 1. Discovers where it exposes agent/tool actions
 2. Maps what it finds onto the AAP-Core object model (Actor, Authority, Action, Decision, Receipt, Invalidation)
 3. Reports exactly which governance objects are missing, per action
@@ -33,11 +44,14 @@ Every outcome this skill reports uses exactly one of these four words — never 
 - **UNSUPPORTED PROFILE** — Step 4 found no matching integration profile for this repo.
 - **NOT INTEGRATED** — a profile matched, but nothing has been wired yet (gap analysis ran,
   or a plan was never approved/implemented).
-- **PARTIAL** — some governed actions have Decision enforced; others don't, or Capability-gap
-  items remain (which they always do until `agf-sdk` grows the missing client surface).
-- **FULL** — every discovered action has Decision enforced, traced, and tested. Given the
-  Capability-gap ceiling, this MVP will rarely if ever report FULL — say PARTIAL honestly
-  instead of stretching for FULL.
+- **PARTIAL** — some governed actions have Decision enforced; others don't, or Receipt/
+  correlation remain open (which they always do until `agf-sdk` grows a receipt client method
+  — the one remaining fixed gap).
+- **FULL** — every discovered action has Decision, Authority, and Execution-validation enforced,
+  traced, and tested. Achievable now for Required verification (corrected 2026-08-25 — Authority
+  via a self-signed chain and Execution-validation are both real, working capabilities, not
+  gaps) — but Receipt/correlation still cap the *overall* status at PARTIAL. Don't stretch FULL
+  to cover a repo where Receipt remains open.
 
 ## Hard rule (read this before Step 0)
 
@@ -50,13 +64,16 @@ unverified" from "not implemented." See Honesty Rules at the end.
 ## Step 0 — AGF Readiness
 
 Read `references/readiness.md` now. Check whether `agf-sdk` is available, whether an
-`agf-runtime` base URL and agent identity are determinable, and whether a credential source
-exists — without ever reading, printing, inventing, or writing an actual secret value. Present
-the readiness report to the user (format in `references/readiness.md`). This step never blocks
-Steps 1-6 — static discovery, mapping, gap analysis, planning, and code generation are all
-valid without a live credential. It only determines whether Step 7's live-verification items
-(Deny-path tested, Revocation test) can actually run, or must be reported BLOCKED with a
-specific reason rather than a vague "not tested."
+`agf-runtime` base URL and agent identity are determinable, and whether **two** distinct
+credential sources exist — the API token AND a persisted agent private key from a completed
+one-time enrollment (`register_agent()`) — without ever reading, printing, inventing, or
+writing an actual secret value. Present the readiness report to the user (format in
+`references/readiness.md`). This step never blocks Steps 1-6 — static discovery, mapping, gap
+analysis, planning, and code generation are all valid without a live credential. It determines
+whether Step 7's live-verification items (Deny-path tested, Revocation test) can actually run,
+or must be reported BLOCKED with a specific reason rather than a vague "not tested" — and
+whether the private-key/enrollment piece is missing specifically, since that means generated
+`guard_tool()` calls will 422 on every real invocation, not just be unverifiable.
 
 ## Step 1 — Discover
 
@@ -111,10 +128,11 @@ explicit list of every file that will be touched and confirmation that nothing e
 continuing. A plan file existing on disk is not approval — approval is the user's explicit
 confirmation in this conversation. Do not proceed to Step 6 without it.
 
-If, during this review, the user asks for execution-validation or receipt calls to be included
-even though `agf-sdk` has no client method for them yet (see Honesty Rules), read
-`references/sdk-gap-fallback.md` now and fold its raw-HTTP pattern into the plan, clearly
-labeled as a hand-maintained fallback, not standard SDK usage.
+Execution-time validation (`validate_execution=True`) is real and live-verified — include it by
+default for every guarded action, it is not a fallback. If, during this review, the user asks
+for receipt calls to be included even though `agf-sdk` has no client method for them (the one
+remaining genuine gap — see Honesty Rules), read `references/sdk-gap-fallback.md` now and fold
+its pattern into the plan, clearly labeled as a hand-maintained fallback, not standard SDK usage.
 
 ## Step 6 — Implement
 
@@ -142,18 +160,19 @@ Read `references/verify.md` now. Render `templates/verification-report.md` with 
 checklist, checked against the **actual current state of the target repo after Step 6** — not
 against what the plan said it would do. The checklist has two distinct sections, kept visually
 separate, not one flat list: **Required verification** (Actor, Authority, Action, Decision,
-Execution gated, Deny path tested, existing app tests — everything `agf-sdk`'s real
-`authorize()`/`guard_tool()` surface can support, scored against what this specific target repo
-actually has) and **Capability gaps** (Execution-time validation, Receipt, Decision↔Receipt
-correlation, Revocation test — things `agf-sdk` has no client method for at all, so MVP cannot
-close them regardless of the target repo). Include the coverage count (N actions discovered vs.
-N governed vs. N decisions enforced vs. N receipts generated). Per the Hard Rule above,
-Capability-gap items must be reported as "Not implemented — SDK capability unavailable" (or
-"Not verifiable in MVP" where the item depends on another unavailable capability) unless
-`references/sdk-gap-fallback.md` was explicitly used in Step 5/6 — never report them as covered
-just because `agf-sdk` is now imported in the file. If Step 0 reported BLOCKED, the Deny-path
-and Revocation-test items must say so explicitly — "BLOCKED — see Step 0: <specific missing
-piece>" — rather than a generic "not tested."
+Execution-time validation, Execution gated, Deny path tested, Revocation test, existing app
+tests — everything `agf-sdk`'s real API surface can support, scored against what this specific
+target repo actually has) and **Capability gaps** (Receipt, Decision↔Receipt correlation — the
+one thing `agf-sdk` has no client method for at all, so MVP cannot close it regardless of the
+target repo). Include the coverage count (N actions discovered vs. N governed vs. N decisions
+enforced vs. N receipts generated). Per the Hard Rule above, do not mark Decision/Authority
+Present if the guarded call has no working chain mechanism — an unchained `guard_tool()` call
+422s on every real invocation, which is not a functioning gate regardless of how the code reads
+structurally. The Receipt/correlation Capability-gap items must be reported as "Not implemented
+— SDK capability unavailable" unless `references/sdk-gap-fallback.md` was explicitly used in
+Step 5/6 — never report them as covered just because `agf-sdk` is now imported in the file. If
+Step 0 reported BLOCKED, the Deny-path and Revocation-test items must say so explicitly —
+"BLOCKED — see Step 0: <specific missing piece>" — rather than a generic "not tested."
 
 ## Validating this skill itself
 
@@ -168,9 +187,17 @@ during a real integration run.
   credential is the user's action, through their own secret mechanism, always.
 - Never mark an AAP-Core object Present because a library is imported — mark it Present only
   when a real call is made at the actual execution boundary and you have traced the code path.
-- Never emit `agf-sdk` calls that don't exist. If a needed method (execution-validation,
-  receipts) has no SDK wrapper, say so — do not invent one or silently substitute a different
-  call that changes the semantics.
+- Never emit `agf-sdk` calls that don't exist. If a needed method (receipts — the one remaining
+  gap) has no SDK wrapper, say so — do not invent one or silently substitute a different call
+  that changes the semantics. Conversely, when a real method exists (execution-validation does —
+  confirmed 2026-08-25 via source and a live test after an earlier, wrong claim otherwise), use
+  it; don't perpetuate a stale "unavailable" claim without re-checking against current source.
+- Never emit a `guard_tool()`/`authorize()` call with `agent_id=` and no working chain mechanism
+  (`chain_provider=` backed by a real enrolled keypair, or an equivalent). Live-confirmed: this
+  isn't a softer "Authority unclosed" state — it's a 422 on every real invocation. Never use a
+  static `chain=` for a self-signed chain either — it expires in 5 minutes
+  (`build_self_signed_chain`'s `exp = now + 300`); use `chain_provider=` so a fresh chain is
+  built per call.
 - Never proceed past Step 5's approval gate without an explicit user confirmation.
 - Never touch files outside what Step 5's plan declared.
 - Never run `git commit` on the user's behalf.

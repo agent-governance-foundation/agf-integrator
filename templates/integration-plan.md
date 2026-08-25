@@ -14,9 +14,12 @@ answer to fill the gap.
 
 1. **Where does AGF authorization happen?** <!-- the exact point in the call chain — e.g. "guard_tool() wraps each @mcp.tool() function, running before the function body" -->
 2. **What is the AGF Actor identity?** <!-- what agent_id represents, concretely — and if no per-caller/per-end-user identity exists in this codebase (common for single-tenant/stdio services), say so explicitly and identify what IS being established instead (e.g. a service/process identity) rather than inventing a fake per-user claim -->
-3. **What Authority is being presented?** <!-- almost always "none — no chain=, static credential only" for this MVP; say so rather than skipping the question -->
+3. **What Authority is being presented?** <!-- a self-signed single-hop chain (build_self_signed_chain, via a chain_provider — never a static chain=, they expire in 5 minutes) backed by a one-time register_agent() enrollment is the real minimum; say explicitly whether that's wired, and that it's self-attested, not a delegated chain from a separate issuer. "None" is not an option this MVP's Decision call can actually run without — see implement-fastapi-mcp.md -->
 4. **How are existing controls retained?** <!-- if the target repo already has its own authorization/validation logic (a role check, a path allowlist, etc.), state explicitly that AGF is layered alongside/before it, not replacing it — removing an existing control is a regression, not an integration, unless the user explicitly asks for removal -->
-5. **How is the AGF token supplied securely?** <!-- concrete mechanism for THIS repo/transport, from Step 0's readiness findings — never a value, only the delivery mechanism -->
+5. **How are the AGF token AND the agent's private key supplied securely?** <!-- two distinct secrets, concrete mechanism for THIS repo/transport, from Step 0's readiness findings — never a value, only the delivery mechanism. Also state where/how the one-time enrollment (register_agent) is run. -->
+
+Execution-time validation (`validate_execution=True`) is a real, live-verified capability —
+include it by default for every guarded action below; there's no reason to omit it.
 
 ## Files this plan will modify
 

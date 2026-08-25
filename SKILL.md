@@ -8,10 +8,18 @@ description: "Use when integrating an AI-agent codebase (FastAPI + MCP agents; m
 ## What this skill is for
 
 **Discover, integrate, and verify AGF authorization in supported AI-agent codebases.** That is
-the whole promise — not "make the agent AGF compliant." This MVP has one real architectural
-ceiling left (no `agf-sdk` client surface for receipts; see Capability gaps in Step 7), so this
-skill never claims full compliance as an outcome. Its output describes exactly what's
-integrated and what isn't — nothing more, nothing rounded up.
+the whole promise — not "make the agent AGF compliant." This skill's output describes exactly
+what's integrated and what isn't — nothing more, nothing rounded up — regardless of how much of
+`agf-sdk`'s surface is actually available.
+
+**RR-0005 (2026-08-25, requires `agf-sdk >= 0.6.0`)**: `agf-sdk` now has a real client method
+for every AAP-Core object this skill checks, including Receipt (`guard_tool(...,
+report_outcome=True)` — see `references/implement-fastapi-mcp.md`). There is no more fixed SDK
+ceiling. **This does not mean FULL is now automatic or expected** — Receipt closed this way is
+self-reported (`gateway="self_reported"`), a real but weaker evidence tier than a
+Gateway-observed one, and every object still has to actually be traced and verified per target
+repo, per action, same as always. Whether a specific integration reaches FULL remains a per-repo
+finding, not a given.
 
 **Corrected 2026-08-25** after a live test against a real local `agf-runtime` found two errors
 in this skill's earlier self-understanding: (1) execution-time validation
@@ -45,13 +53,14 @@ Every outcome this skill reports uses exactly one of these four words — never 
 - **NOT INTEGRATED** — a profile matched, but nothing has been wired yet (gap analysis ran,
   or a plan was never approved/implemented).
 - **PARTIAL** — some governed actions have Decision enforced; others don't, or Receipt/
-  correlation remain open (which they always do until `agf-sdk` grows a receipt client method
-  — the one remaining fixed gap).
-- **FULL** — every discovered action has Decision, Authority, and Execution-validation enforced,
-  traced, and tested. Achievable now for Required verification (corrected 2026-08-25 — Authority
-  via a self-signed chain and Execution-validation are both real, working capabilities, not
-  gaps) — but Receipt/correlation still cap the *overall* status at PARTIAL. Don't stretch FULL
-  to cover a repo where Receipt remains open.
+  correlation/Authority/Execution-validation weren't actually wired for this repo — a per-repo
+  gap now, not a fixed SDK ceiling (see RR-0005 above).
+- **FULL** — every discovered action has Actor, Authority, Decision, Execution-validation, and
+  Receipt all enforced, traced, and tested (Receipt may be self-reported — still counts, but say
+  so in the report). Genuinely achievable now with `agf-sdk >= 0.6.0` — don't undersell it by
+  defaulting to PARTIAL out of old habit, but don't claim it either without actually tracing and
+  testing every object, including a real reported outcome for Receipt, not just the decorator's
+  presence.
 
 ## Hard rule (read this before Step 0)
 
@@ -128,11 +137,12 @@ explicit list of every file that will be touched and confirmation that nothing e
 continuing. A plan file existing on disk is not approval — approval is the user's explicit
 confirmation in this conversation. Do not proceed to Step 6 without it.
 
-Execution-time validation (`validate_execution=True`) is real and live-verified — include it by
-default for every guarded action, it is not a fallback. If, during this review, the user asks
-for receipt calls to be included even though `agf-sdk` has no client method for them (the one
-remaining genuine gap — see Honesty Rules), read `references/sdk-gap-fallback.md` now and fold
-its pattern into the plan, clearly labeled as a hand-maintained fallback, not standard SDK usage.
+Execution-time validation (`validate_execution=True`) and Receipt (`report_outcome=True`,
+requires `agf-sdk >= 0.6.0`) are both real and live-verified — include both by default for every
+guarded action, neither is a fallback. Mark Receipt closed this way as self-reported
+(`gateway="self_reported"`) in the plan, not as equivalent to a Gateway-observed one.
+`references/sdk-gap-fallback.md` is now largely historical — load it only if the target repo
+needs an `agf-sdk` version older than 0.6.0 and the user explicitly wants a workaround anyway.
 
 ## Step 6 — Implement
 
@@ -158,20 +168,19 @@ in order, each a hard stop if unmet:
 
 Read `references/verify.md` now. Render `templates/verification-report.md` with the evidence
 checklist, checked against the **actual current state of the target repo after Step 6** — not
-against what the plan said it would do. The checklist has two distinct sections, kept visually
-separate, not one flat list: **Required verification** (Actor, Authority, Action, Decision,
-Execution-time validation, Execution gated, Deny path tested, Revocation test, existing app
-tests — everything `agf-sdk`'s real API surface can support, scored against what this specific
-target repo actually has) and **Capability gaps** (Receipt, Decision↔Receipt correlation — the
-one thing `agf-sdk` has no client method for at all, so MVP cannot close it regardless of the
-target repo). Include the coverage count (N actions discovered vs. N governed vs. N decisions
-enforced vs. N receipts generated). Per the Hard Rule above, do not mark Decision/Authority
-Present if the guarded call has no working chain mechanism — an unchained `guard_tool()` call
-422s on every real invocation, which is not a functioning gate regardless of how the code reads
-structurally. The Receipt/correlation Capability-gap items must be reported as "Not implemented
-— SDK capability unavailable" unless `references/sdk-gap-fallback.md` was explicitly used in
-Step 5/6 — never report them as covered just because `agf-sdk` is now imported in the file. If
-Step 0 reported BLOCKED, the Deny-path and Revocation-test items must say so explicitly —
+against what the plan said it would do. As of RR-0005 (`agf-sdk >= 0.6.0`), every AAP-Core
+object this skill checks has a real client method — the checklist is now one list (Actor,
+Authority, Action, Decision, Execution-time validation, Execution gated, Deny path tested,
+Revocation test, Receipt, Decision↔Receipt correlation, existing app tests), not split into a
+Required-verification/Capability-gaps structure. Include the coverage count (N actions
+discovered vs. N governed vs. N decisions enforced vs. N receipts generated). Per the Hard Rule
+above, do not mark Decision/Authority Present if the guarded call has no working chain
+mechanism — an unchained `guard_tool()` call 422s on every real invocation, which is not a
+functioning gate regardless of how the code reads structurally. If the target repo's `agf-sdk`
+is older than 0.6.0, or `report_outcome=True` wasn't actually wired, report Receipt/correlation
+as genuinely Missing for this repo — not a fixed ceiling, but still not to be rounded up. Mark a
+`report_outcome=True`-produced Receipt as self-reported, never implied to be Gateway-observed.
+If Step 0 reported BLOCKED, the Deny-path and Revocation-test items must say so explicitly —
 "BLOCKED — see Step 0: <specific missing piece>" — rather than a generic "not tested."
 
 ## Validating this skill itself
@@ -187,11 +196,14 @@ during a real integration run.
   credential is the user's action, through their own secret mechanism, always.
 - Never mark an AAP-Core object Present because a library is imported — mark it Present only
   when a real call is made at the actual execution boundary and you have traced the code path.
-- Never emit `agf-sdk` calls that don't exist. If a needed method (receipts — the one remaining
-  gap) has no SDK wrapper, say so — do not invent one or silently substitute a different call
-  that changes the semantics. Conversely, when a real method exists (execution-validation does —
-  confirmed 2026-08-25 via source and a live test after an earlier, wrong claim otherwise), use
-  it; don't perpetuate a stale "unavailable" claim without re-checking against current source.
+- Never emit `agf-sdk` calls that don't exist. If the target repo's pinned `agf-sdk` version
+  predates a method this skill wants to use (e.g. `report_outcome`/`validate_execution` need
+  >= 0.6.0/0.4.0 respectively), say so and don't emit the call — do not invent one or silently
+  substitute a different call that changes the semantics. Conversely, when a real method exists,
+  use it; don't perpetuate a stale "unavailable" claim without re-checking against current
+  source — this skill's own history (2026-08-25) includes getting this wrong twice
+  (execution-validation, then treating Receipt as a fixed gap after RR-0005 closed it) and
+  correcting it only after an actual live test, not a source re-read alone.
 - Never emit a `guard_tool()`/`authorize()` call with `agent_id=` and no working chain mechanism
   (`chain_provider=` backed by a real enrolled keypair, or an equivalent). Live-confirmed: this
   isn't a softer "Authority unclosed" state — it's a 422 on every real invocation. Never use a

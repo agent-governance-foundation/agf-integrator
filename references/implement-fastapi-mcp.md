@@ -113,6 +113,8 @@ def _chain_for(action_type: str):
     action_type="tool:issue_refund",
     resource="issue_refund",
     chain_provider=_chain_for("tool:issue_refund"),
+    validate_execution=True,
+    report_outcome=True,
 )
 def issue_refund(order_id: str, amount: float) -> str:
     ...
@@ -139,6 +141,26 @@ confirmed against real source, not a claim from a stale earlier check in this sk
 Include it by default for any action worth gating at all — there's no real reason to omit it
 now that it's confirmed to exist and work. It raises the same `AGFDeniedError` as a failed
 Decision if the execution-time check fails.
+
+## Receipts (RR-0005) — real, live-verified, requires `agf-sdk >= 0.6.0`
+
+`guard_tool(..., report_outcome=True)` automatically calls `client.report_outcome(artifact_id,
+"executed" | "not_executed")` right after the guarded function returns or raises — no manual
+try/except needed. This is what actually closes the Receipt gap for a `guard_tool()`-based
+integration; before this, `agf-sdk` had no way to know a non-Gateway-proxied action's real
+outcome at all, so no Receipt was ever produced regardless of what else was wired. Best-effort
+— a reporting failure is logged and swallowed, never raised into the caller, never able to mask
+the guarded function's own return value or exception.
+
+The resulting Receipt is marked `gateway="self_reported"` — deliberately distinct from a
+Gateway-observed one (`mcp`/`a2a`/`http`), since this is the caller *claiming* an outcome AGF
+never directly witnessed, not AGF observing it. Say this plainly wherever Receipt is reported as
+closed — it's real evidence, but a weaker tier than a Gateway-proxied integration would produce,
+and the plan/verification report must not conflate the two.
+
+**Requires `agf-sdk >= 0.6.0`** — check the target repo's pinned version (or what Step 6 is
+about to add) before claiming this is available; an older `agf-sdk` has no `report_outcome=`
+parameter at all and passing it would be a `TypeError`, not a graceful no-op.
 
 ## Wiring a plain FastAPI route (when there's no MCP layer for a given action)
 
@@ -167,18 +189,22 @@ the plan rather than fabricating one.
 ## What this closes and what it doesn't
 
 Wiring `guard_tool`/`authorize()` with a `chain_provider`/`private_key_pem` (as above) closes
-**Decision**, **Execution-validation** (if `validate_execution=True`), and a real, if minimal,
-**Authority** — a self-signed single-hop chain (`iss == sub == agent_id`) is a legitimate,
-scoped, signed AAP-Core Authority object, just a self-attested one rather than a multi-hop
-delegation from a separate issuing authority. Say which kind it is plainly in the plan — don't
-let "Authority: Present" imply a delegated chain if it's actually self-signed. It also closes
-**Actor**, if a real per-caller id is threaded through.
+**Decision**, **Execution-validation** (if `validate_execution=True`), **Receipt** (if
+`report_outcome=True`, `agf-sdk >= 0.6.0` — self-reported, mark it as such), and a real, if
+minimal, **Authority** — a self-signed single-hop chain (`iss == sub == agent_id`) is a
+legitimate, scoped, signed AAP-Core Authority object, just a self-attested one rather than a
+multi-hop delegation from a separate issuing authority. Say which kind it is plainly in the
+plan — don't let "Authority: Present" imply a delegated chain if it's actually self-signed, and
+don't let "Receipt: Present" imply a Gateway-observed one if it's actually self-reported. It
+also closes **Actor**, if a real per-caller id is threaded through.
 
-It does **not** close:
-- **Receipt** — nothing here records a correlated outcome; `agf-sdk` has no client-side receipt
-  API (confirmed: no `receipt`-named method anywhere in `agf-sdk`, see SKILL.md Honesty Rules).
-  This is the one remaining genuine SDK gap.
-- **Decision↔Receipt correlation** — depends on Receipt existing, which it doesn't.
+**Decision↔Receipt correlation** closes too, once Receipt does — `report_outcome()`
+automatically correlates against any prior Spec 30 execution-validation record for the same
+decision (`execution_validation_ref`), same as a Gateway-proxied receipt would.
+
+With all of the above wired, there is no remaining fixed SDK gap for this profile — `agf-sdk`
+now has a real client method for every AAP-Core object this skill checks. Whether a specific
+target repo actually closes all of them is still a per-repo finding, not a given.
 
 **Also flag explicitly when it matters**: `guard_tool`'s `resource=` defaults to the function
 name and is fixed at decorator-application time — it scopes the Decision to "may this agent

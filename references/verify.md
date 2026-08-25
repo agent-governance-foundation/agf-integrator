@@ -6,30 +6,24 @@ Goal: produce evidence of what was actually wired, checked against the target re
 current state after Step 6 — not against what the plan said it would do. This is the step
 that makes the Hard Rule concrete: a claim without evidence is not verification.
 
-**Corrected 2026-08-25** after a live test against a real local `agf-runtime` found the
-original "Capability gaps" list was wrong: execution-time validation and revocation testing are
-both real, achievable capabilities (`guard_tool(..., validate_execution=True)`, confirmed live)
-— they moved into Required verification. Also: `chain=`/Authority is not just "usually unclosed
-because the target repo lacks a delegation source" — a bare API key with no chain at all causes
-`/v1/decide` to return **422**, not a degraded decision. Check for this specifically.
+**Corrected twice, both 2026-08-25**, after live tests against a real local `agf-runtime`: (1)
+the original "Capability gaps" list was wrong about execution-time validation and revocation
+testing — both real, achievable (`guard_tool(..., validate_execution=True)`, confirmed live).
+Also, `chain=`/Authority is not just "usually unclosed because the target repo lacks a
+delegation source" — a bare API key with no chain at all causes `/v1/decide` to return **422**,
+not a degraded decision. (2) RR-0005 closed the last fixed gap: Receipt, via
+`guard_tool(..., report_outcome=True)` (`agf-sdk >= 0.6.0`), live-verified end-to-end (real
+success and failure paths, both producing correctly-classified receipts). There is no more
+fixed SDK ceiling — every item below is a per-repo finding now, checked the same way.
 
-## Two kinds of checklist item — don't conflate them
+## One checklist — trace and test every item, don't assume any of it
 
-**Required verification** covers everything `agf-sdk`'s real API surface can support today —
-Decision, Actor, Authority (including a self-signed `chain_provider`, which is a real, legitimate
-way to close it), Execution-time validation, Deny-path, Revocation. Whether each one is actually
-closed depends on the *target repo* and the *approved plan*, not on an SDK limitation. Score
-these normally (Present/Partial/Missing, per what Step 6 actually did).
-
-**Capability gaps** now covers only **Receipt** and anything that depends on it (Decision↔Receipt
-correlation) — `agf-sdk` genuinely has no client method for either (confirmed: no `receipt`-named
-symbol anywhere in `agf-sdk/agf/*.py`). This is the one remaining fixed ceiling. Keep it in a
-visually separate section of the report so a reader doesn't have to figure out which kind of
-"Missing" they're looking at.
+Every AAP-Core object this skill checks now has a real `agf-sdk` client method (as of
+`>= 0.6.0`). Whether each one is actually closed depends on the *target repo* and the *approved
+plan*, never on an SDK limitation anymore. Score every item the same way — Present/Partial/
+Missing, per what Step 6 actually did — there is no separate "fixed ceiling" section.
 
 ## How to check each item (don't just assert — trace it)
-
-### Required verification (Authorization)
 
 - **Actor identified**: open each modified call site; confirm a real per-caller identity
   (not a hardcoded constant, unless that was explicitly justified in the plan) is passed into
@@ -71,20 +65,16 @@ visually separate section of the report so a reader doesn't have to figure out w
   exists and report the real result; if none exists, say so rather than marking this N/A as if
   it were a pass.
 
-### Capability gaps (fixed MVP ceiling, not a per-repo finding)
-
-- **Receipt generated**: `agf-sdk` 0.5.0+ can *fetch* a receipt (`list_receipts()`/
-  `get_receipt()`), but `guard_tool()`-based integrations never *produce* one — receipt emission
-  is Gateway-proxy-only server-side (confirmed by direct grep of every
-  `emit_execution_receipt()` call site). Report as "Not implemented — this profile's
-  `guard_tool()` pattern never causes a receipt to be emitted (see
-  `references/sdk-gap-fallback.md`; runtime change proposed and pending review as RR-0005)" —
-  not the older "SDK capability unavailable," which is no longer accurate. If
-  `references/sdk-gap-fallback.md` was used and a receipt-producing path was actually wired
-  (e.g. the target also routes through a Gateway proxy), check it like any Required-verification
-  item instead.
-- **Decision↔Receipt correlation**: "Not verifiable in MVP" — depends on Receipt existing at
-  all; only becomes checkable once Receipt does.
+- **Receipt generated**: confirm `report_outcome=True` is wired on `guard_tool()` (requires
+  `agf-sdk >= 0.6.0` — check the target's pinned version first) and that a real receipt was
+  actually produced (fetch it via `list_receipts()`/`get_receipt()` and confirm it exists,
+  don't infer from the flag's presence alone). Mark it explicitly as self-reported
+  (`gateway="self_reported"`) — never imply it's Gateway-observed. If `agf-sdk` is older than
+  0.6.0, or the flag wasn't wired, report Missing for this repo — that's a real, closeable gap
+  now, not a fixed SDK ceiling, so don't soften the finding.
+- **Decision↔Receipt correlation**: depends on Receipt existing — once it does, confirm the
+  receipt's `execution_validation_ref` correlates to the right Spec 30 record if execution-time
+  validation also ran for the same call.
 
 ## Coverage count
 

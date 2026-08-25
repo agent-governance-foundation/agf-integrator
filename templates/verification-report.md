@@ -21,11 +21,13 @@ any SDK limitation.
 
 ## Capability gaps (fixed MVP ceiling — not a finding about this repo)
 
-`agf-sdk` has no client method for either of these today, so they cannot be closed by this
-skill regardless of the target repo, unless `references/sdk-gap-fallback.md` was explicitly used
-and a confirmed real endpoint was found.
+`agf-sdk` can *fetch* a receipt (`list_receipts()`/`get_receipt()`, 0.5.0+), but this profile's
+`guard_tool()` pattern never causes one to be *produced* — receipt emission is Gateway-proxy-only
+server-side. Neither item below can be closed by this skill's default codegen regardless of the
+target repo, unless `references/sdk-gap-fallback.md` was explicitly used and a receipt-producing
+path was actually wired (e.g. also routing through a Gateway proxy).
 
-- [ ] Receipt generated — <!-- "Not implemented — SDK capability unavailable", unless sdk-gap-fallback.md found a confirmed real endpoint -->
+- [ ] Receipt generated — <!-- "Not implemented — this profile's guard_tool() pattern never causes a receipt to be emitted (runtime change proposed, pending review as RR-0005)", unless sdk-gap-fallback.md found a receipt-producing path -->
 - [ ] Decision <-> Receipt correlation verified — <!-- "Not verifiable in MVP" — depends on Receipt existing -->
 
 ## Coverage

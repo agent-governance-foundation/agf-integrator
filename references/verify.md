@@ -73,9 +73,16 @@ visually separate section of the report so a reader doesn't have to figure out w
 
 ### Capability gaps (fixed MVP ceiling, not a per-repo finding)
 
-- **Receipt generated**: "Not implemented — SDK capability unavailable" unless
-  `references/sdk-gap-fallback.md` was used and a confirmed real endpoint was actually wired, in
-  which case check it like any Required-verification item instead.
+- **Receipt generated**: `agf-sdk` 0.5.0+ can *fetch* a receipt (`list_receipts()`/
+  `get_receipt()`), but `guard_tool()`-based integrations never *produce* one — receipt emission
+  is Gateway-proxy-only server-side (confirmed by direct grep of every
+  `emit_execution_receipt()` call site). Report as "Not implemented — this profile's
+  `guard_tool()` pattern never causes a receipt to be emitted (see
+  `references/sdk-gap-fallback.md`; runtime change proposed and pending review as RR-0005)" —
+  not the older "SDK capability unavailable," which is no longer accurate. If
+  `references/sdk-gap-fallback.md` was used and a receipt-producing path was actually wired
+  (e.g. the target also routes through a Gateway proxy), check it like any Required-verification
+  item instead.
 - **Decision↔Receipt correlation**: "Not verifiable in MVP" — depends on Receipt existing at
   all; only becomes checkable once Receipt does.
 

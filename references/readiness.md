@@ -84,8 +84,9 @@ Status:
 Do not invent, generate, or provision a token — ever. Tell the user exactly what's needed and
 let them configure it. Split the output into two categories, and treat them differently:
 
-**Safe to write** (non-secret — the skill *may* add these to `templates/agf-config.yaml` in
-Step 5/6, since that template already exists for exactly this):
+**Safe to write** (non-secret — `templates/agf-config.yaml` is reference material only; the
+skill never writes it into the target repo on its own, only if Step 5's approved plan
+explicitly lists it as a file to create, same as any other planned file):
 ```
 AGF_BASE_URL=<agf-runtime base URL, e.g. http://localhost:8004 for dev>
 AGF_AGENT_ID=<this integration's agent identifier>

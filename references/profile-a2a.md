@@ -2,12 +2,10 @@ Load this only from SKILL.md Step 4. Never read this file during Steps 1-3, 5-7.
 
 # Profile: Python + A2A (Agent2Agent protocol) + agf-runtime
 
-**Honesty caveat, unlike `profile-fastapi-mcp.md`'s MCP signals**: the A2A Python SDK
-(`a2a-sdk`) is newer and faster-moving than MCP, and this file's signals are grounded in
-current public docs, not a real installed package read the way MCP was verified repeatedly
-elsewhere in this skill's history. Before writing any code in Step 6, read the target repo's
-actual installed `a2a-sdk` source directly — do not trust this file's shapes as gospel if they
-look stale against what's actually installed.
+**Caution**: `a2a-sdk` moves fast (0.2.x → 1.1.x across its release history). The shapes below
+are verified against a real installed `a2a-sdk` (1.1.2), not just docs — but re-check against
+the target repo's actual pinned version before writing code; don't assume this file stays
+accurate forever the way you shouldn't assume that for MCP either.
 
 ## Detection signals
 
@@ -31,18 +29,23 @@ general) than this skill's default pattern. Instead, mirror the FastAPI+MCP prof
 approach: call the same generic `agf-sdk` surface **directly inside `execute()`**, not through
 a decorator:
 
-- `agf.AgentGovernance.authorize(agent_id, action, resource, *, chain=None, audience="agf", context=None) -> AuthResult`
-  (`agf-sdk/agf/govern.py`) — called at the top of `execute()`, before any of the agent's real
-  task logic runs. `execute()` is a fixed-name class method with a fixed `(context, event_queue)`
-  signature, so `guard_tool()`'s per-tool decorator (built around wrapping an arbitrarily-named
-  function and defaulting `resource=` to its name) doesn't fit here — direct `authorize()` calls
-  inside the function body are already this skill's documented pattern for exactly this case
-  (see `references/implement-fastapi-mcp.md`'s note on per-instance/dynamic `resource=`).
-- `AgentGovernance(private_key_pem=...)` self-signs its chain per call automatically — no
-  separate `chain_provider=` wiring needed for this direct-call style.
-- `agf.AGFClient.validate_execution()` / `report_outcome()` (`agf-sdk/agf/client.py`) — call the
-  same way, directly, right before and after invoking the real task logic, same as the MCP
-  profile's `validate_execution=True`/`report_outcome=True` recipe.
+- `agf.AGFClient.decide(action_type, resource, *, chain=None, audience="agf", context=None) -> DecisionResult`
+  (`agf-sdk/agf/client.py`, **async** — the same client `guard_tool()` uses internally) — called
+  at the top of `execute()`, before any of the agent's real task logic runs. Raises
+  `AGFDeniedError` on DENY. `execute()` is a fixed-name class method with a fixed
+  `(context, event_queue)` signature, so `guard_tool()`'s per-tool decorator (built around
+  wrapping an arbitrarily-named function and defaulting `resource=` to its name) doesn't fit
+  here — direct `decide()` calls inside the function body are already this skill's documented
+  pattern for exactly this case (see `references/implement-fastapi-mcp.md`'s note on
+  per-instance/dynamic `resource=`). Use the async client, not the sync `AgentGovernance` facade
+  — `execute()` is `async def` by contract, and blocking calls inside it is a real correctness
+  problem for a server handling concurrent tasks, not just style.
+- Build a fresh `chain=` per call via `agf.keys.build_self_signed_chain()` — same reason as the
+  MCP profile: a chain built once expires in 5 minutes. No `chain_provider=` machinery to wire
+  here (that's specific to `guard_tool()`'s decorator use case).
+- `agf.AGFClient.validate_execution()` / `report_outcome()` — call the same way, directly, right
+  before and after invoking the real task logic, same as the MCP profile's
+  `validate_execution=True`/`report_outcome=True` recipe.
 
 **Receipts here are `gateway="self_reported"`, never `"a2a"`** — the `"a2a"` gateway value means
 Gateway-*observed* (AGF directly forwarded the call), which this direct-call pattern never does.

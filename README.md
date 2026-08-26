@@ -5,9 +5,11 @@ verifies [Agent Governance Foundation](https://agentgovernancefoundation.com) au
 an existing AI-agent codebase. It never modifies a target repository without an explicitly
 approved plan, and it never claims more coverage than it can actually trace and verify.
 
-**Status: MVP, not distributed as a package.** One integration profile is supported today
-(Python + MCP, FastAPI optional). Self-tested against a synthetic fixture and validated
-end-to-end against a real third-party repository ([hypercat/PyMCP-FS](https://github.com/hypercat/PyMCP-FS)).
+**Status: MVP.** Two integration profiles are supported today: Python + MCP (FastAPI optional),
+and Python + A2A (Agent2Agent protocol). The FastAPI/MCP profile is self-tested against a
+synthetic fixture and validated end-to-end against a real third-party repository
+([hypercat/PyMCP-FS](https://github.com/hypercat/PyMCP-FS)); the A2A profile is new and not
+yet exercised against a real target repo or a fixture.
 
 ## What it does
 
@@ -68,6 +70,7 @@ assets/fixtures/        Synthetic target repo used for self-testing this skill's
 
 ## Scope
 
-Explicitly out of scope for this MVP: adapters for LangGraph, A2A, OpenAI Agents SDK, or AWS
-Lambda; a multi-profile classifier; extending `agf-sdk` with the missing execution-validation/
-receipt client methods; per-path (vs. per-tool) authorization; automated CI.
+Explicitly out of scope: adapters for LangGraph, OpenAI Agents SDK, or AWS Lambda — `agf-sdk`
+has no client support for any of these yet (not just no skill automation), so they need SDK
+work first, not just a new profile file here; per-path (vs. per-tool) authorization for a
+single guarded call.

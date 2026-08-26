@@ -2,9 +2,9 @@ Load this only from SKILL.md Step 4. Never read this file during Steps 1-3, 5-7.
 
 # Profile: Python + FastAPI + MCP + agf-runtime
 
-This is the only integration profile this skill supports today (v1 / MVP). This file is
-written so that adding a second profile later means adding a sibling file + one row to a
-table, not rewriting Step 4's control flow — but for now there is exactly one row.
+The first integration profile this skill supported (v1 / MVP). See also
+`references/profile-a2a.md` — the second profile, added the way this file's original comment
+anticipated: a sibling file + one row in Step 4's lookup, no control-flow rewrite needed.
 
 ## Detection signals
 

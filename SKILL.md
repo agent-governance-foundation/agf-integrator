@@ -114,14 +114,18 @@ so plainly and stop; there's nothing to plan or implement.
 
 ## Step 4 — Classify
 
-Read `references/profile-fastapi-mcp.md` now. Check the target repo's detected stack against
-the one supported MVP profile (Python + FastAPI + MCP + agf-runtime). This is a binary
-match/no-match, not a lookup table — only one profile exists today.
+Check the target repo's detected stack against the supported profiles, in order, stopping at
+the first match:
 
-- **Match**: continue to Step 5.
+1. Python + FastAPI + MCP + agf-runtime — read `references/profile-fastapi-mcp.md`.
+2. Python + A2A (Agent2Agent protocol) + agf-runtime — read `references/profile-a2a.md`.
+
+- **Match**: continue to Step 5 using that profile's detection/implementation references.
 - **No match**: report status **UNSUPPORTED PROFILE**. Tell the user exactly what stack you
-  detected instead (e.g. LangGraph, A2A, OpenAI Agents SDK, raw HTTP agent) and that no adapter
-  exists for it in this skill yet. `agf-sdk` already ships standalone
+  detected instead (e.g. LangGraph, OpenAI Agents SDK, AWS Lambda, raw HTTP agent) and that no
+  adapter exists for it in this skill yet — LangGraph's graph/node execution model and OpenAI
+  Agents SDK/AWS Lambda have no `agf-sdk` support at all today, not just no skill automation, so
+  don't imply these are equally close to being supported. `agf-sdk` already ships standalone
   `langchain.py`/`crewai.py`/`browser.py` adapters usable directly without this skill — mention
   them if relevant, but do not attempt to auto-wire an unsupported stack. Stop here.
 
@@ -129,9 +133,10 @@ match/no-match, not a lookup table — only one profile exists today.
 
 Read `references/plan-format.md` now. Render `templates/integration-plan.md` into the target
 repo at `.agf-integrator/integration-plan.md`: for every gap from Step 3, the exact guard to
-add, the exact call site (file:line), the exact real `agf-sdk` call (see
-`references/implement-fastapi-mcp.md` for the real signatures — never invent an API), and an
-explicit list of every file that will be touched and confirmation that nothing else will be.
+add, the exact call site (file:line), the exact real `agf-sdk` call (see the matched profile's
+`references/implement-*.md` — `implement-fastapi-mcp.md` or `implement-a2a.md` — for the real
+signatures; never invent an API), and an explicit list of every file that will be touched and
+confirmation that nothing else will be.
 
 **Hard stop.** Present the plan to the user and ask them to explicitly approve it before
 continuing. A plan file existing on disk is not approval — approval is the user's explicit
@@ -151,9 +156,9 @@ gaps the normal recipe above already handles.
 
 ## Step 6 — Implement
 
-Only run this step once Step 5's plan has been explicitly approved. Read
-`references/implement-fastapi-mcp.md` now for the real codegen recipes. Preconditions, checked
-in order, each a hard stop if unmet:
+Only run this step once Step 5's plan has been explicitly approved. Read the matched profile's
+`references/implement-*.md` now for the real codegen recipes. Preconditions, checked in order,
+each a hard stop if unmet:
 
 1. The approved plan from Step 5 exists and was confirmed by the user in this conversation.
 2. Check the target repo's git status. If there are pre-existing uncommitted changes unrelated

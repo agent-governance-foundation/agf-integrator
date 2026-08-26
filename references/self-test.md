@@ -56,3 +56,30 @@ Step 3 output for this fixture — the closest available thing to a golden file.
 
 Document the result of this checklist (pass/fail per item) in your own working notes when
 making a change — this file doesn't dictate where, since no CI is wired up for v1.
+
+## A2A profile fixture
+
+`assets/fixtures/a2a-support-agent/` is the second-profile equivalent, same three-gap-class
+shape adapted to A2A's real one-executor-per-entrypoint model: `SearchOrderExecutor` (no guard),
+`UpdateTicketExecutor` (ad-hoc `call_context.user.is_authenticated` check, not AGF-backed),
+`IssueRefundExecutor` (`client.decide()` called with an empty `chain=[]` — the same
+structurally-present-but-non-functional trap as the MCP fixture's `issue_refund`). Run the same
+0-6 checklist against it when changing anything in `profile-a2a.md`/`implement-a2a.md`.
+
+**Run 2026-08-26** (manual — no `claude` CLI available in that session, so this was executed by
+hand rather than via a live `/agf-integrator` invocation): building this fixture surfaced two
+real bugs in `implement-a2a.md`/`profile-a2a.md` as originally shipped (an invented
+`AgentGovernance` constructor call missing a required arg, and a check against a nonexistent
+`.decision` field) — found by installing the real `a2a-sdk`/`agf-sdk` and reading actual source
+before writing the fixture, not by the fixture itself. Both fixed before the fixture was built.
+With the fix in place: Step 6 applied cleanly to a throwaway copy (new branch, one commit —
+baseline only, `server.py` + a new `scripts/agf_enroll.py` changed, diffs reviewed), every
+symbol used (`AGFClient.decide`/`validate_execution`/`report_outcome`, `build_self_signed_chain`,
+`AGFDeniedError`, `a2a.server.agent_execution.AgentExecutor`/`RequestContext`,
+`a2a.server.events.event_queue.EventQueue`) was confirmed to actually import and match its real
+signature, and the regression check (re-deriving verdicts from the implemented code) matched
+`expected-gaps.md`'s post-implementation table exactly for all three executors — no over- or
+under-crediting. **Not done in this run**: no live local `agf-runtime` was stood up, so this
+tests that the recipe is syntactically/semantically correct against real installed SDKs, not
+that a live `decide()`/`validate_execution()` call actually succeeds end-to-end the way the MCP
+profile's pattern was separately live-verified. That's the next real gap for this profile.

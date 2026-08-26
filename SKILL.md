@@ -144,6 +144,11 @@ guarded action, neither is a fallback. Mark Receipt closed this way as self-repo
 `references/sdk-gap-fallback.md` is now largely historical — load it only if the target repo
 needs an `agf-sdk` version older than 0.6.0 and the user explicitly wants a workaround anyway.
 
+If Step 3 concluded a gap is caused by `agf-sdk`/`agf-runtime` itself lacking a capability —
+not the target repo simply not using AGF yet — read `references/review-record-draft.md` now.
+This is rare (no currently-live example as of this writing); most gaps are ordinary target-repo
+gaps the normal recipe above already handles.
+
 ## Step 6 — Implement
 
 Only run this step once Step 5's plan has been explicitly approved. Read
@@ -216,3 +221,7 @@ during a real integration run.
 - If Step 3 finds nothing missing, or Step 4 finds no matching profile, say so and stop —
   don't manufacture work.
 - Step 7's report must reflect what Step 6 actually did, not what Step 5 planned to do.
+- Never write into `agf-profile/implementation/review-records/` (or any AGF-owned repo) and
+  never assign a real `RR-NNNN` number, even when drafting a genuine AGF-itself capability-gap
+  proposal (`references/review-record-draft.md`) — always an unnumbered draft in the target
+  repo's `.agf-integrator/`, always for a human to review and file themselves.

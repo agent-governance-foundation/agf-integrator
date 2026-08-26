@@ -36,6 +36,13 @@ all**, not just "Decision present, Authority absent." Score Decision as Missing 
 too (a call that will error on every real invocation isn't a working Decision gate), and say so
 explicitly in the reason.
 
+**If a gap is caused by AGF itself, not the target repo**: almost every Missing/Partial verdict
+here means the target repo hasn't wired `agf-sdk` yet — the normal case, handled by Step 5/6's
+recipe, no escalation needed. In the rare case a verdict is Missing because `agf-sdk`/
+`agf-runtime` genuinely has no client method or endpoint for it (confirmed by checking current
+source, not assumed), say so explicitly in the reason and flag it for Step 5 — see
+`references/review-record-draft.md`.
+
 ## Output format
 
 One block per discovered action, worked example shape (matches the pattern of a support-agent

@@ -1,0 +1,11 @@
+{
+  "name": "agf-integrator",
+  "description": "Discover, plan, implement, and verify Agent Governance Foundation (AGF) authorization in AI-agent codebases.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Agent Governance Foundation",
+    "url": "https://agentgovernancefoundation.com"
+  },
+  "homepage": "https://github.com/agent-governance-foundation/agf-integrator",
+  "repository": "https://github.com/agent-governance-foundation/agf-integrator"
+}

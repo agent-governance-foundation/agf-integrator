@@ -1,0 +1,15 @@
+{
+  "name": "agf-integrator",
+  "owner": {
+    "name": "Agent Governance Foundation",
+    "url": "https://agentgovernancefoundation.com"
+  },
+  "plugins": [
+    {
+      "name": "agf-integrator",
+      "source": "./",
+      "description": "Discover, plan, implement, and verify Agent Governance Foundation (AGF) authorization in AI-agent codebases.",
+      "version": "1.0.0"
+    }
+  ]
+}

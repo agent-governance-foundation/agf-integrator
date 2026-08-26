@@ -38,9 +38,21 @@ not a shortfall to apologize for.
 
 ## Using it
 
-This is a set of markdown instructions for a coding agent, not an installable package. To make
-it invokable as a `/agf-integrator` slash command in Claude Code, place (or symlink) this
-directory under a `.claude/skills/` folder — either your personal one
+**As a plugin (recommended)** — this repo is a self-hosted Claude Code plugin marketplace with
+one entry, itself:
+
+```
+/plugin marketplace add agent-governance-foundation/agf-integrator
+/plugin install agf-integrator@agf-integrator
+```
+
+This restores `/agf-integrator` as an auto-discovered slash command without cloning anything
+manually. *(Not yet verified against a live `claude plugin install` run — if something doesn't
+match, please open an issue.)*
+
+**Manually** — this is also just a set of markdown instructions a coding agent can follow
+directly. To make it invokable as a `/agf-integrator` slash command without the plugin system,
+place (or symlink) this directory under a `.claude/skills/` folder — either your personal one
 (`~/.claude/skills/agf-integrator`) or a specific project's
 (`<project>/.claude/skills/agf-integrator`). See
 [`SKILL.md`](SKILL.md) for the full pipeline definition.

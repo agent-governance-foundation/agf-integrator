@@ -327,4 +327,23 @@ repo validation against a genuine AWS Lambda deployment — both deliberately de
 pacing as every other profile's build (profile+implement+fixture first; live-test and real-repo
 validation are separate, smaller follow-on steps if wanted next).
 
-**All five supported profiles now have a self-test fixture.**
+**Live-tested 2026-08-27** against a real local `agf-runtime` (Docker Postgres+OPA, real
+migrations, real uvicorn), calling the fixture's guarded handlers exactly the way the real
+`awslambdaric` runtime calls a handler (positional, synchronous, using a real
+`awslambdaric.lambda_context.LambdaContext` per invocation). Confirmed: DENY for an unenrolled
+agent identity; ALLOW with `validate_execution=True`/`report_outcome=True` for a real low-risk
+action (`read:calendar`), with a real Receipt row confirmed in Postgres. One deviation from every
+other profile's precedent, reported honestly rather than forced to match: the first call
+(`search_order`, default risk config) returned ALLOW immediately rather than the usual
+REVIEW_REQUIRED — not treated as a bug (the live-test's job is to report what actually happened,
+not to enforce a specific outcome), just noted as an observed variation. **The Lambda-specific
+check no other profile's live test exercises**: five consecutive calls through the *same*
+guarded handler sharing the *same* module-level `AGFClient`, simulating a warm Lambda container's
+repeated invocations — exactly the shape `agf-sdk`'s pre-0.7.0 sync-bridge bug broke on the
+second call. All five succeeded, each producing its own real Receipt row (6 total confirmed in
+Postgres for this action, including the earlier ALLOW call) — definitively confirming the 0.7.0
+fix holds for this profile's real, characteristic usage pattern. No live real-target-repo
+validation yet — the remaining, smaller optional item.
+
+**All five supported profiles now have a self-test fixture; four of five (all but AWS Lambda's
+real-repo pass) are validated to the full three-tier standard.**

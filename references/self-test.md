@@ -342,8 +342,38 @@ guarded handler sharing the *same* module-level `AGFClient`, simulating a warm L
 repeated invocations — exactly the shape `agf-sdk`'s pre-0.7.0 sync-bridge bug broke on the
 second call. All five succeeded, each producing its own real Receipt row (6 total confirmed in
 Postgres for this action, including the earlier ALLOW call) — definitively confirming the 0.7.0
-fix holds for this profile's real, characteristic usage pattern. No live real-target-repo
-validation yet — the remaining, smaller optional item.
+fix holds for this profile's real, characteristic usage pattern.
 
-**All five supported profiles now have a self-test fixture; four of five (all but AWS Lambda's
-real-repo pass) are validated to the full three-tier standard.**
+**Real target-repo validation completed 2026-08-27** —
+[ran-isenberg/aws-lambda-handler-cookbook](https://github.com/ran-isenberg/aws-lambda-handler-cookbook)
+(680 stars, 59 forks, 364 commits — real, independently built and actively maintained, not an
+official `aws-samples` repo; the AWS Lambda equivalent of every other profile's real-repo target).
+A real, CDK-deployed Orders service (create/get/delete/list, real `DynamoDB` operations) with
+**no application-level authorization anywhere** (confirmed: no authorizer/API-key/Cognito config
+in the CDK, only an infra-level WAF WebACL — IP/rate-based, not identity-based). Classify
+correctly matched on real signals (a two-positional-arg, non-async `lambda_handler` referenced by
+a CDK `lambda.Function`) against previously-unseen code — no detection-signal change needed.
+
+**The one real refinement this validation surfaced**: every handler here is already wrapped in a
+stack of AWS Lambda Powertools decorators (`@init_environment_variables`, `@logger.inject_lambda_context`,
+`@metrics.log_metrics`, `@tracer.capture_lambda_handler`) — `implement-aws-lambda.md`'s original
+before/after only ever showed a bare handler, never a decorator stack. Verified directly, not
+assumed: installed the real `aws_lambda_powertools`/`aws_lambda_env_modeler`/`aws_xray_sdk`
+packages and confirmed `guard_tool()` placed innermost (closest to `def`, same side of the stack
+`implement-fastapi-mcp.md` already uses for `@mcp.tool()`) composes and propagates correctly for
+both ALLOW and DENY through the *real* Powertools stack, not just in isolation — added as new
+guidance in `implement-aws-lambda.md`. (The repo's own DAL layer needed a Rust toolchain to
+install from source, unrelated to this change — the decorator-composition question was isolated
+and verified directly instead of blocked on that.)
+
+Step 5 plan: `guard_tool()` on `handle_create_order.py` and `handle_delete_order.py`'s
+`lambda_handler`s (2 of 4 real, separately-deployed handlers — a representative subset). Step 6
+applied cleanly to a throwaway clone (new branch, no commit, only the 2 handler files + a new
+`scripts/agf_enroll.py` touched). Step 7 reported PARTIAL, Actor scored Missing/static (no
+per-caller identity anywhere in this codebase, same finding as the OpenAI Agents SDK target).
+Nothing pushed to the third-party repo.
+
+**All five supported profiles are now validated to the full three-tier standard** (fixture
+self-test, live-runtime test, real third-party target-repo validation) — this closes out the
+entire validation arc for every profile `agf-integrator` supports. `agf-integrator`'s complete
+MVP scope, as most recently stated in its own README, is now fully built and fully validated.

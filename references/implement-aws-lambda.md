@@ -103,6 +103,32 @@ is recorded as a Lambda `Error` — visible in CloudWatch/whatever error-handlin
 deployment already has, e.g. a DLQ or `on_failure` destination) — this skill does not invent a
 Lambda-native "requires auth" mapping, there isn't one.
 
+## If the handler already has other decorators
+
+Real, common — not a hypothetical (found validating this profile against a real target repo
+using AWS Lambda Powertools' observability decorators). Apply `guard_tool()` **innermost,
+immediately above `def handler`**, same side of the stack the FastAPI/MCP profile already uses
+for `@mcp.tool()` (apply `guard_tool()` closer to `def`) — so the target's own outer decorators
+(logging context, tracing, metrics) wrap AGF's own `decide()`/`validate_execution()` call too,
+and a DENY/REVIEW_REQUIRED shows up correlated in the target's existing observability instead of
+bypassing it:
+
+```python
+@init_environment_variables(model=HandlerEnvVars)      # target's own decorators, outermost —
+@logger.inject_lambda_context(...)                      # unchanged, still wrap everything
+@metrics.log_metrics
+@tracer.capture_lambda_handler(capture_response=False)
+@guard_tool(client, agent_id=AGF_AGENT_ID, action_type="lambda:issue_refund",
+            chain_provider=_chain_provider, validate_execution=True, report_outcome=True)
+def handler(event, context):
+    ...
+```
+
+Verified directly against a real target's actual decorator stack (AWS Lambda Powertools'
+`Tracer`/`Logger`/`Metrics` plus `aws_lambda_env_modeler`'s `init_environment_variables`) before
+writing this guidance — both the ALLOW and DENY paths compose and propagate correctly through the
+full real stack, not just in isolation.
+
 ## Git workflow while implementing
 
 Same as `references/implement-fastapi-mcp.md`'s Step 6 git workflow (new branch, one file at a

@@ -41,10 +41,11 @@ Given a target AI-agent codebase, `agf-integrator` runs an 8-step pipeline:
 > evidence, and passing verification.
 
 Every status this skill reports uses one of four words — **UNSUPPORTED PROFILE**, **NOT
-INTEGRATED**, **PARTIAL**, or **FULL** — never "compliant." Given a real, fixed limitation in
-`agf-sdk` today (no client method for execution-time validation or receipts — see
-`references/sdk-gap-fallback.md`), **PARTIAL is the expected, honest outcome** for this MVP,
-not a shortfall to apologize for.
+INTEGRATED**, **PARTIAL**, or **FULL** — never "compliant." `agf-sdk >= 0.6.0`'s
+`guard_tool(..., report_outcome=True)` now produces a genuine, live-verified Receipt (RR-0005,
+2026-08-25), so **FULL is achievable** for a `guard_tool()`-based integration on a current SDK.
+Only a target repo pinned to `agf-sdk < 0.6.0` and unable to upgrade falls back to PARTIAL — see
+`references/sdk-gap-fallback.md` for that historical case.
 
 ## Using it
 

@@ -1,0 +1,2 @@
+openai-agents
+agf-sdk>=0.6.0

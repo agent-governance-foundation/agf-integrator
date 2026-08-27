@@ -1,0 +1,24 @@
+You are running a controlled, non-interactive self-test of the agf-integrator skill against its
+own fixture, in this working directory. This is CI, not a real integration -- there is no human
+available to answer questions in this invocation. A separate message approving your Step 5 plan
+will arrive later in this same conversation, exactly as a real user would give it in chat.
+
+Follow SKILL.md's pipeline (loaded from .claude/skills/agf-integrator/) against this directory
+as the target repo:
+
+- Step 0 (Readiness): run it. It will correctly report BLOCKED, since no live agf-runtime or
+  credential exists in this CI environment -- that is expected, not an error. Do not invent,
+  generate, or provision any credential to work around it.
+- Steps 1-3 (Discover, Map, Gap Analysis): run them normally. In ADDITION to presenting the
+  gap-analysis report in your response as usual, also write it verbatim -- in the exact
+  structured Present/Partial/Missing format used throughout this skill's own docs (see
+  references/gap-analysis.md's template) -- to a new file at .agf-integrator/gap-analysis.md.
+- Step 4 (Classify): run it normally. This fixture is built to match the FastAPI+MCP profile.
+- Step 5 (Plan): render templates/integration-plan.md into .agf-integrator/integration-plan.md
+  per references/plan-format.md, using the real agf-sdk signatures from
+  references/implement-fastapi-mcp.md (the canonical recipe: chain_provider=,
+  validate_execution=True, report_outcome=True). Then STOP -- do not proceed to Step 6, and do
+  not write a value into the plan's Approved: field yourself.
+
+Do not modify server.py, requirements.txt, or expected-gaps.md during Steps 0-5 -- those are
+read-only inputs at this stage. Work only within .agf-integrator/.

@@ -1,2 +1,2 @@
 fastmcp
-agf-sdk
+agf-sdk>=0.6.0

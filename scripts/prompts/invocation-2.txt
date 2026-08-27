@@ -1,0 +1,13 @@
+Approved. Proceed with Step 6 (Implement) against the plan you already wrote to
+.agf-integrator/integration-plan.md, then Step 7 (Verify).
+
+For Step 6: create a new git branch before making any change (never commit directly to the
+branch you started on), touch only the files your approved plan declared, and show a diff for
+each file you change as you go. Do not create any git commit -- leave changes staged/unstaged
+for review, per SKILL.md's Step 6 contract.
+
+For Step 7: in addition to presenting the verification report in your response as usual, also
+write it verbatim to .agf-integrator/verification-report.md. Then, separately, re-run Steps 1-3
+against the now-implemented code (the regression check from references/self-test.md item 6) and
+write that second gap-analysis report, in the same structured format as your first one, to
+.agf-integrator/gap-analysis-post.md.

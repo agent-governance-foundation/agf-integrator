@@ -1,0 +1,151 @@
+name: Self-test
+
+# Automates references/self-test.md (see agf-profile/implementation/future-plans.md #10,
+# item 5). Steps 4-7 of the skill require real agent judgment -- there is no way to script the
+# full pipeline without invoking an LLM, so `self-test` below runs a real, non-interactive
+# Claude Code agent against a throwaway copy of the fixture. That's a real per-run API cost and
+# a --dangerously-skip-permissions CI job on a public repo -- both deliberate, scoped choices,
+# not oversights; see the comments on the `self-test` job below.
+#
+# Path-filtered so an unrelated change (README, LICENSE, etc.) doesn't burn API budget -- still
+# runs automatically on every push/PR that touches something this self-test actually exercises.
+on:
+  push:
+    paths:
+      - "SKILL.md"
+      - "references/**"
+      - "templates/**"
+      - "assets/fixtures/**"
+      - "scripts/**"
+      - ".github/workflows/self-test.yml"
+  pull_request:
+    paths:
+      - "SKILL.md"
+      - "references/**"
+      - "templates/**"
+      - "assets/fixtures/**"
+      - "scripts/**"
+      - ".github/workflows/self-test.yml"
+
+jobs:
+  # Tier 1 -- fast, mechanical, no LLM, no cost. Catches "someone broke the fixture" before the
+  # expensive Tier 2 job even starts.
+  fixture-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install fixture dependencies
+        run: pip install -r assets/fixtures/support-agent-fastapi-mcp/requirements.txt
+      - name: Mechanical fixture checks
+        run: python scripts/check_fixture.py
+
+  # Tier 2 -- the real regression check. Runs the actual 7-step pipeline via a non-interactive
+  # Claude Code agent against a throwaway copy of the fixture, split into two invocations
+  # because Step 5 has a hard human-approval gate the agent must not silently skip -- this
+  # workflow does the approving as a chat message (invocation-2.txt's "Approved."), exactly
+  # mirroring what a human reviewer does in the manual self-test, per references/plan-format.md
+  # ("Approved: <filled in by the user, in chat, not by editing this file>").
+  self-test:
+    needs: fixture-check
+    runs-on: ubuntu-latest
+    # --dangerously-skip-permissions is scoped to an ephemeral GitHub Actions runner, operating
+    # only inside a throwaway temp-dir copy of a synthetic fixture -- never the real repo
+    # checkout, never a real target repo, never real credentials. Step 0 will correctly report
+    # BLOCKED (no live agf-runtime/credential exists in CI), matching every prior live-test run
+    # of this skill. GitHub withholds repository secrets from `pull_request` runs triggered by
+    # forks by default, bounding ANTHROPIC_API_KEY exposure to pushes and same-repo PRs.
+    # ANTHROPIC_API_KEY must be provisioned in this repo's Settings -> Secrets by a maintainer --
+    # this workflow never invents, generates, or writes a key value anywhere.
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Set up throwaway fixture copy
+        run: |
+          set -euo pipefail
+          mkdir -p work
+          cp -r repo/assets/fixtures/support-agent-fastapi-mcp/. work/
+          cd work
+          git init -q -b baseline
+          git -c user.email=ci@agentgovernancefoundation.com -c user.name="agf-integrator CI" \
+            add -A
+          git -c user.email=ci@agentgovernancefoundation.com -c user.name="agf-integrator CI" \
+            commit -q -m "throwaway fixture baseline (self-test CI, not a real repo)"
+          mkdir -p .claude/skills/agf-integrator
+          cp -r ../repo/SKILL.md ../repo/references ../repo/templates \
+            .claude/skills/agf-integrator/
+
+      - name: Install fixture dependencies
+        run: pip install -r work/requirements.txt
+
+      - name: Invocation 1 -- Steps 0-5, stop at the approval gate
+        working-directory: work
+        run: |
+          set -euo pipefail
+          claude -p "$(cat ../repo/scripts/prompts/invocation-1.txt)" \
+            --model claude-sonnet-5 \
+            --output-format json \
+            --dangerously-skip-permissions \
+            --add-dir "$PWD" \
+            --max-turns 40 \
+            > ../invocation-1.json
+          cat ../invocation-1.json
+
+      - name: Diff Step 3 output against expected-gaps.md (pre-implementation)
+        run: |
+          python repo/scripts/diff_gap_analysis.py \
+            --expected-section pre \
+            --actual work/.agf-integrator/gap-analysis.md
+
+      - name: Invocation 2 -- resume the same session, approve, run Steps 6-7
+        working-directory: work
+        run: |
+          set -euo pipefail
+          SESSION_ID=$(python ../repo/scripts/extract_session_id.py ../invocation-1.json)
+          claude -p "$(cat ../repo/scripts/prompts/invocation-2.txt)" \
+            --resume "$SESSION_ID" \
+            --model claude-sonnet-5 \
+            --output-format json \
+            --dangerously-skip-permissions \
+            --add-dir "$PWD" \
+            --max-turns 40 \
+            > ../invocation-2.json
+          cat ../invocation-2.json
+
+      - name: Assert branch/diff/no-commit invariants
+        working-directory: work
+        run: python ../repo/scripts/check_implementation.py
+
+      - name: Regression check -- diff post-implementation state
+        run: |
+          python repo/scripts/diff_gap_analysis.py \
+            --expected-section post \
+            --actual work/.agf-integrator/gap-analysis-post.md
+
+      - name: Upload agent transcripts for debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-test-transcripts
+          path: |
+            invocation-1.json
+            invocation-2.json
+            work/.agf-integrator/
+          retention-days: 14

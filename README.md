@@ -7,17 +7,17 @@ approved plan, and it never claims more coverage than it can actually trace and 
 
 **Status: MVP.** Five integration profiles are supported today: Python + MCP (FastAPI optional),
 Python + A2A (Agent2Agent protocol), Python + LangGraph, Python + OpenAI Agents SDK, and Python +
-AWS Lambda. The first four are each self-tested against a synthetic fixture, live-tested against
-a real local `agf-runtime`, and validated end-to-end against a real third-party repository —
+AWS Lambda. Each is self-tested against a synthetic fixture, live-tested against a real local
+`agf-runtime`, and validated end-to-end against a real third-party repository —
 [hypercat/PyMCP-FS](https://github.com/hypercat/PyMCP-FS) (FastAPI/MCP),
 [yandex-ai-studio/customer-support-chatbot](https://github.com/yandex-ai-studio/customer-support-chatbot)
 (A2A),
 [wassim249/fastapi-langgraph-agent-production-ready-template](https://github.com/wassim249/fastapi-langgraph-agent-production-ready-template)
-(LangGraph), and
+(LangGraph),
 [jawwad-ali/ai-customer-support-agent](https://github.com/jawwad-ali/ai-customer-support-agent)
-(OpenAI Agents SDK). AWS Lambda is new — it needs no new `agf-sdk` code at all (`guard_tool()`
-already works unmodified on a raw handler), and is self-tested against a fixture, but hasn't yet
-been live-tested or validated against a real target repo.
+(OpenAI Agents SDK), and
+[ran-isenberg/aws-lambda-handler-cookbook](https://github.com/ran-isenberg/aws-lambda-handler-cookbook)
+(AWS Lambda).
 
 ## What it does
 

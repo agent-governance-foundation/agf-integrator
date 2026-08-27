@@ -60,6 +60,18 @@ What `context: RequestContext` actually exposes for extracting a real caller/tas
 Actor) is version-specific — read the target's installed `a2a-sdk` source to confirm the real
 attribute before claiming Actor: Present on anything beyond a static service-level identity.
 
+**Real-world scoping ceiling (found validating against `yandex-ai-studio/customer-support-chatbot`,
+2026-08-26)**: `execute()` is often the *only* governable call site in an A2A agent — the real
+mutating actions can be selected and invoked entirely inside an LLM's own downstream tool-calling
+(MCP or otherwise) into a service this executor's code never calls directly. When that's the
+case, a Decision here governs "may this agent run a task/turn at all," not "may it perform this
+specific downstream action" — a coarser ceiling than even this skill's existing "per-tool, not
+per-instance" caveat. Say so explicitly in the plan and verification report; do not let
+"Decision: Present" imply the downstream actions are individually gated when they are not.
+Closing that would mean integrating the service those downstream tool calls actually reach, if
+its source is available — a separate target/profile, not something achieved by touching only
+the A2A executor.
+
 See `references/implement-a2a.md` for concrete before/after code.
 
 ## If it doesn't match

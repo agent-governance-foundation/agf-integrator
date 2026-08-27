@@ -100,5 +100,21 @@ the real, verified `TaskUpdater.requires_auth()` helper. This is exactly the kin
 self-testing exists to catch — a fixture/syntax-level pass alone wouldn't have surfaced it, since
 `REVIEW_REQUIRED` only appears from a real runtime's actual risk-scoring pipeline.
 
-Remaining real gap for this profile: no real target-repo validation (an A2A equivalent of
-PyMCP-FS) has been run yet.
+**Real target-repo validation completed 2026-08-26** (`yandex-ai-studio/customer-support-chatbot`,
+cloned to a scratchpad throwaway, a real airline customer-support A2A agent — the equivalent of
+PyMCP-FS's role for the MCP profile). Classify correctly matched on the real `a2a-sdk`
+dependency + `AgentExecutor` subclass signals against unfamiliar code, not the skill's own
+fixture. Step 5 surfaced a genuinely new kind of governance-architecture limitation neither the
+fixture nor PyMCP-FS had exercised: the repo's single A2A entrypoint
+(`CustomerSupportAgentExecutor.execute()`) can only be gated at the level of "may this agent run
+a support conversation turn at all" — the real mutating actions (seat change, cancellation,
+baggage, meal preference, assistance — genuine `airline-api` REST endpoints) are selected and
+invoked entirely inside the LLM's own MCP tool-calling, downstream and outside this executor's
+process boundary. This is a coarser ceiling than the already-documented "per-tool, not
+per-instance" caveat — per-conversation-turn, not even per-tool — and was disclosed explicitly
+in the plan and verification report rather than letting "Decision: Present" imply more coverage
+than it has. Step 6 applied cleanly (new branch, no commit, only the plan's 3 declared files
+touched, `airline-api`/`chatkit-agent`/`frontend` confirmed untouched); Step 7 reported PARTIAL,
+Deny-path/Revocation correctly BLOCKED per Step 0 (no live credential configured for this
+specific validation). Nothing pushed to the third-party repo — this stays local, matching how
+PyMCP-FS's validation was handled.

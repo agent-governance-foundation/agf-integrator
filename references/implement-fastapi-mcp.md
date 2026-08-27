@@ -81,7 +81,13 @@ await client.register_agent(name="<service name>", did=AGF_AGENT_ID, public_key_
   changes, not something folded silently into the guarded server's normal request-path code.
   Re-running `register_agent()` with a *different* public key for an *already-registered* DID
   fails (`AGFAuthError`) rather than updating the key — treat re-enrollment as a deliberate,
-  separate action, not an idempotent startup call.
+  separate action, not an idempotent startup call. A **second, independent reason** this must be
+  a separate process, not just style: `AGFClient` wraps `httpx.AsyncClient`, which can only be
+  used safely from one event loop for its whole lifetime — an enrollment `await
+  client.register_agent(...)` on the app's main loop, followed later by the *same* client
+  instance being used through `guard_tool()`'s sync bridge (its own separate background loop),
+  is live-confirmed to break on the very next guarded call. Always enroll with a client instance
+  that is discarded afterward, never the guarded server's own long-lived client.
 - **Sandbox/test-mode API keys (`agfk_test_...`) are capped** — live-confirmed: 2 active agents
   per org on sandbox tier ("Sandbox accounts are limited to 2 active agents. Go live to register
   more.", `FORBIDDEN`). Worth surfacing in the plan if the target needs more than one distinct

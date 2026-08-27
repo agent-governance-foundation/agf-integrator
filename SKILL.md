@@ -119,15 +119,16 @@ the first match:
 
 1. Python + FastAPI + MCP + agf-runtime — read `references/profile-fastapi-mcp.md`.
 2. Python + A2A (Agent2Agent protocol) + agf-runtime — read `references/profile-a2a.md`.
+3. Python + LangGraph + agf-runtime — read `references/profile-langgraph.md`.
+4. Python + OpenAI Agents SDK + agf-runtime — read `references/profile-openai-agents.md`.
+5. Python + AWS Lambda + agf-runtime — read `references/profile-aws-lambda.md`.
 
 - **Match**: continue to Step 5 using that profile's detection/implementation references.
 - **No match**: report status **UNSUPPORTED PROFILE**. Tell the user exactly what stack you
-  detected instead (e.g. LangGraph, OpenAI Agents SDK, AWS Lambda, raw HTTP agent) and that no
-  adapter exists for it in this skill yet — LangGraph's graph/node execution model and OpenAI
-  Agents SDK/AWS Lambda have no `agf-sdk` support at all today, not just no skill automation, so
-  don't imply these are equally close to being supported. `agf-sdk` already ships standalone
-  `langchain.py`/`crewai.py`/`browser.py` adapters usable directly without this skill — mention
-  them if relevant, but do not attempt to auto-wire an unsupported stack. Stop here.
+  detected instead and mention `agf-sdk`'s standalone adapters (`langchain.py`/`crewai.py`/
+  `browser.py`) if relevant, but do not attempt to auto-wire an unsupported stack
+  through this skill's pipeline — that still requires a profile file here, which doesn't exist
+  for these yet. Stop here.
 
 ## Step 5 — Plan
 

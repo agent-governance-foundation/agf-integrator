@@ -41,8 +41,10 @@ necessarily every gap — the user may choose to defer some). For each entry:
 
 - The exact gap being closed (reference Step 3's report entry)
 - The exact call site: file path and line number
-- The exact code change: the real `agf-sdk` call from `references/implement-fastapi-mcp.md`,
-  written out as it will actually appear — never a placeholder or pseudocode
+- The exact code change: the real `agf-sdk` call from the matched profile's
+  `references/implement-*.md` (`implement-fastapi-mcp.md`, `implement-a2a.md`, or
+  `implement-langgraph.md` — whichever Step 4 matched), written out as it will actually appear —
+  never a placeholder or pseudocode
 - Whether this closes the gap fully or partially (e.g. adding `guard_tool` closes Decision but
   not Receipt or Execution-validation — say so explicitly, don't imply full coverage)
 

@@ -5,11 +5,19 @@ verifies [Agent Governance Foundation](https://agentgovernancefoundation.com) au
 an existing AI-agent codebase. It never modifies a target repository without an explicitly
 approved plan, and it never claims more coverage than it can actually trace and verify.
 
-**Status: MVP.** Two integration profiles are supported today: Python + MCP (FastAPI optional),
-and Python + A2A (Agent2Agent protocol). The FastAPI/MCP profile is self-tested against a
-synthetic fixture and validated end-to-end against a real third-party repository
-([hypercat/PyMCP-FS](https://github.com/hypercat/PyMCP-FS)); the A2A profile is new and not
-yet exercised against a real target repo or a fixture.
+**Status: MVP.** Five integration profiles are supported today: Python + MCP (FastAPI optional),
+Python + A2A (Agent2Agent protocol), Python + LangGraph, Python + OpenAI Agents SDK, and Python +
+AWS Lambda. The first four are each self-tested against a synthetic fixture, live-tested against
+a real local `agf-runtime`, and validated end-to-end against a real third-party repository —
+[hypercat/PyMCP-FS](https://github.com/hypercat/PyMCP-FS) (FastAPI/MCP),
+[yandex-ai-studio/customer-support-chatbot](https://github.com/yandex-ai-studio/customer-support-chatbot)
+(A2A),
+[wassim249/fastapi-langgraph-agent-production-ready-template](https://github.com/wassim249/fastapi-langgraph-agent-production-ready-template)
+(LangGraph), and
+[jawwad-ali/ai-customer-support-agent](https://github.com/jawwad-ali/ai-customer-support-agent)
+(OpenAI Agents SDK). AWS Lambda is new — it needs no new `agf-sdk` code at all (`guard_tool()`
+already works unmodified on a raw handler), and is self-tested against a fixture, but hasn't yet
+been live-tested or validated against a real target repo.
 
 ## What it does
 
@@ -70,7 +78,5 @@ assets/fixtures/        Synthetic target repo used for self-testing this skill's
 
 ## Scope
 
-Explicitly out of scope: adapters for LangGraph, OpenAI Agents SDK, or AWS Lambda — `agf-sdk`
-has no client support for any of these yet (not just no skill automation), so they need SDK
-work first, not just a new profile file here; per-path (vs. per-tool) authorization for a
-single guarded call.
+Explicitly out of scope: per-path (vs. per-tool) authorization for a single guarded call. All
+five profiles this skill's README has ever named as a target now exist.

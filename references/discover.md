@@ -12,6 +12,14 @@ it does not judge them. Judgment happens in Step 3 (Gap Analysis).
 - `@mcp.tool()` decorators (FastMCP or the `mcp` package) — the primary MVP signal
 - FastAPI routes (`@app.post(...)`, `@router.post(...)`, etc.) that an LLM call or agent loop
   reaches, directly or via a tool-calling layer
+- `StateGraph(...).add_node(name, fn)` node registrations (`langgraph`) — note whether `fn` is a
+  plain function/graph node or a `ToolNode`/`create_react_agent` wrapping `BaseTool` instances;
+  they take different guards (see `references/profile-langgraph.md`)
+- `@function_tool`-decorated functions and `Agent(...)` construction (`openai-agents`, import
+  name `agents`)
+- A `def handler(event, context)`/`lambda_handler` entrypoint (exactly two positional params,
+  never `async def`) referenced by a `serverless.yml`/SAM `template.yaml`/CDK `lambda.Function`
+  handler declaration (AWS Lambda)
 - Any `async def` / `def` reachable from a "tool call" dispatch table (e.g. a dict mapping
   tool names to functions, common in hand-rolled agent loops without MCP)
 

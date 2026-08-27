@@ -129,3 +129,202 @@ touched, `airline-api`/`chatkit-agent`/`frontend` confirmed untouched); Step 7 r
 Deny-path/Revocation correctly BLOCKED per Step 0 (no live credential configured for this
 specific validation). Nothing pushed to the third-party repo — this stays local, matching how
 PyMCP-FS's validation was handled.
+
+## LangGraph profile fixture
+
+`assets/fixtures/langgraph-support-agent/` is the third-profile equivalent, adapted to
+LangGraph's `StateGraph.add_node()` model. Deliberately tests only the graph-node surface
+(`guard_node`) — the tool-calling surface (`ToolNode`/`create_react_agent`) already reuses the
+FastAPI/MCP fixture's `AGFGuardedTool` pattern untouched, no new ground to cover there. Same
+three-gap-class shape as the other fixtures: `search_order` (no guard), `update_ticket` (ad-hoc
+`state["authenticated"]` check, not AGF-backed), `issue_refund` (`@guard_node(..., chain=[])`
+applied — the same structurally-present-but-non-functional empty-chain trap as the MCP/A2A
+fixtures' `issue_refund`/`IssueRefundExecutor`). Run the same 0-6 checklist against it when
+changing anything in `profile-langgraph.md`/`implement-langgraph.md`.
+
+**Run 2026-08-27** (manual — no `claude` CLI available in this session, same limitation the A2A
+fixture build hit): the fixture itself imports and compiles cleanly against the real installed
+`langgraph`/`agf-sdk` (verified directly, not assumed) — no bugs found in `profile-langgraph.md`/
+`implement-langgraph.md` this time (unlike A2A's first pass, which caught two real API bugs).
+Applied the `implement-langgraph.md` recipe by hand to a throwaway copy (a new
+`scripts/agf_enroll.py`, `server.py` rewritten with `chain_provider=`/`validate_execution=True`/
+`report_outcome=True` on all three nodes): every cited symbol (`guard_node`, `build_self_signed_chain`,
+`AGFClient.register_agent`/`validate_execution`/`report_outcome`) confirmed to actually import and
+match its real signature via direct inspection, and the regression check (re-deriving verdicts
+from the implemented code) matched `expected-gaps.md`'s post-implementation table exactly for all
+three nodes — no over- or under-crediting.
+
+**Live-tested 2026-08-27** against a real local `agf-runtime` (Docker Postgres+OPA, real
+migrations, real uvicorn) — a fixture-shaped 3-node graph (`search_order` at default risk config,
+`issue_refund` at a real low-risk action type, an unenrolled-identity DENY case), all matching
+`profile-langgraph.md`'s recipe exactly. **Surfaced a real, previously-unknown bug in `agf-sdk`
+itself, not the fixture**: `agf.mcp._run_async_from_sync()` (shared by `guard_tool()`/
+`guard_node()`/`guard_action()`) created a brand-new event loop on every sync-bridged call, which
+breaks a shared `AGFClient`'s pooled httpx connections on the second call —
+`RuntimeError: Event loop is closed`. Reproduced in complete isolation (no LangGraph involved)
+with plain `guard_tool()` called twice. **This is the exact combination
+`implement-fastapi-mcp.md`'s own canonical example uses** (async `AGFClient` guarding a sync
+`def` tool) — any real MCP server handling more than one request was affected, as shipped in
+`agf-sdk` 0.6.0 on PyPI. Fixed in `agf-sdk` by routing all three functions through the
+already-correct, already-tested `agf._sync_bridge.run_sync` (a single persistent background
+loop) instead of a fresh-loop-per-call approach — the same fix `agf.langchain`/`agf.crewai`
+already had via a different bridge. Regression tests added to `test_mcp_guard.py`/
+`test_langgraph_guard.py`/`test_browser_guard.py`. A second, narrower, related constraint was
+also found and documented (not a bug the bridge fix can solve): mixing direct `await` calls on
+an app's main event loop with sync-bridged calls, on the *same* `AGFClient` instance, is still
+unsafe — `httpx.AsyncClient` can only be used from one event loop for its lifetime. This is why
+enrollment must use its own, separate, discarded client instance (now stated explicitly in
+`implement-fastapi-mcp.md`'s enrollment section, not just implied by file-separation style).
+After both fixes, the full 3-outcome live-test passed end-to-end: DENY, REVIEW_REQUIRED, and
+ALLOW with a real Receipt row confirmed in Postgres.
+
+**Real target-repo validation completed 2026-08-27** —
+[wassim249/fastapi-langgraph-agent-production-ready-template](https://github.com/wassim249/fastapi-langgraph-agent-production-ready-template)
+(2.6k stars, 616 forks, 160 commits — real, independently maintained, not an official
+LangChain/LangGraph tutorial; the LangGraph equivalent of PyMCP-FS/`customer-support-chatbot`'s
+role for the other two profiles). Classify correctly matched on real signals against previously-
+unseen code. Surfaced two genuinely new findings the fixture never exercised, both incorporated
+into `profile-langgraph.md`/`implement-langgraph.md` before this write-up:
+
+1. **A third real-world node shape**: a single generic `"tool_call"` dispatcher node that loops
+   over `state.messages[-1].tool_calls` and invokes each by dynamic name lookup — neither
+   `ToolNode` nor "one node per action" (the fixture's assumption). `guard_node`'s
+   `action_type=`/`resource=` are fixed at decoration time, so wrapping the whole dispatcher can
+   only express a coarse "may this agent call *some* tool" gate — the correct fix is a direct,
+   dynamic `AGFClient.decide()` call inside the dispatcher's per-call closure instead, matching
+   `implement-a2a.md`'s dynamic-`resource=` pattern. This is a coarser-than-fixture-assumed
+   ceiling discovered from the opposite direction of A2A's per-turn finding — LangGraph's *own*
+   idiomatic shape for tool-calling agents, not just a framework boundary.
+2. **A real bug caught before it shipped, not just documented after**: `_chat` is a bound
+   instance method (a class holding graph nodes as methods — common real code, never exercised by
+   the fixture's plain module-level functions). `guard_node` wraps the plain function *before*
+   binding, so the real call carries a leading `self` positional arg neither the method's own
+   signature nor a naively-written `chain_provider` accounts for. A `chain_provider` matching
+   `_chat`'s declared `(state, config)` signature raised `TypeError: takes 2 positional arguments
+   but 3 were given` — reproduced directly against the real `guard_node`, confirmed the generic
+   `lambda *args, **kwargs: ...` fix works, *then* wrote the doc guidance — not the other way
+   around.
+
+Step 1-3 found: `/chat`/`/chat/stream` routes gated by the target's own real JWT session auth
+(`get_current_session`) — preserved untouched, not replaced, per `plan-format.md`'s standing rule.
+Two current tools, both low-stakes as shipped (`duckduckgo_search_tool` read-only,
+`ask_human` a human-confirmation pause, not itself a mutating action) — noted honestly rather than
+inflating the stakes; the dispatcher-node finding is an architecture-level observation independent
+of what specific tools exist today. Real per-caller identity is available in this repo
+(`session.id`/`username` from its own auth) that no fixture ever had — but disclosed explicitly
+that `guard_node`'s `agent_id=` is *also* fixed at decoration time, so this recipe's Actor is
+still a static service-level identity, not per-session, despite richer identity being available
+one layer up. Step 5 plan: `guard_node` on `_chat` (coarse turn-level gate) plus the direct-call
+pattern inside `_execute_tool` (real per-tool Decision on both tools). Step 6 applied cleanly to a
+throwaway clone (new branch, no commit, only the plan's 2 declared files touched — `scripts/
+agf_enroll.py` new, `app/core/langgraph/graph.py` modified). Step 7 reported PARTIAL (the Actor
+limitation, disclosed rather than rounded up); Deny-path/Revocation correctly BLOCKED per Step 0
+(no live credential configured for this specific validation). Nothing pushed to the third-party
+repo — stays local, matching how every other real-repo validation this session was handled.
+
+## OpenAI Agents SDK profile fixture
+
+`assets/fixtures/openai-agents-support-agent/` is the fourth-profile equivalent. Simpler than
+the other three — this SDK has only one governance surface (every tool is a `FunctionTool`), no
+"which surface does this belong to" split needed. Same three-gap-class shape: `search_order`
+(no guard), `update_ticket` (ad-hoc `authenticated` argument check, not AGF-backed),
+`issue_refund` (`guard_function_tool(issue_refund, client, ..., chain=[])` applied — the same
+structurally-present-but-non-functional empty-chain trap as every other fixture's
+`issue_refund`). Run the same 0-6 checklist against it when changing anything in
+`profile-openai-agents.md`/`implement-openai-agents.md`.
+
+**Run 2026-08-27** (manual — no `claude` CLI available in this session, same limitation every
+other fixture build hit): the fixture itself imports and builds cleanly against the real
+installed `openai-agents`/`agf-sdk` (verified directly). One naming issue caught and fixed
+*while building the fixture*, before it ever reached the golden file: the guarded tool's
+underlying function was initially named `_issue_refund_impl` to distinguish it from the guarded
+variable, but `guard_function_tool` preserves `tool.name` unchanged — so the LLM-visible tool
+name and `guard_function_tool`'s default `resource=`/`action_type=` would have been
+`_issue_refund_impl`, not `issue_refund`, silently leaking an internal naming choice into the
+tool's real identity. Fixed by renaming the function to `issue_refund` and the guarded variable
+to `guarded_issue_refund` instead (matching `implement-openai-agents.md`'s own convention) —
+confirmed via direct inspection that `agent.tools[*].name` reads `issue_refund` afterward. No
+bugs found in `profile-openai-agents.md`/`implement-openai-agents.md` themselves. Applied the
+`implement-openai-agents.md` recipe by hand to a throwaway copy (a new `scripts/agf_enroll.py`,
+`server.py` rewritten with `chain_provider=`/`validate_execution=True`/`report_outcome=True` on
+all three tools): every cited symbol (`guard_function_tool`, `build_self_signed_chain`,
+`AGFClient.register_agent`/`validate_execution`/`report_outcome`) confirmed to actually import
+and match its real signature, and the regression check matched `expected-gaps.md`'s
+post-implementation table exactly for all three tools — no over- or under-crediting.
+
+**Live-tested 2026-08-27** against a real local `agf-runtime`, same infra session as LangGraph's
+live-test above: `search_order` at default risk config (REVIEW_REQUIRED, expected), `read_calendar`
+at a real low-risk action type (ALLOW, real Receipt row confirmed in Postgres), an
+unenrolled-identity DENY case. `guard_function_tool` does not share the `_run_async_from_sync`
+bridge `guard_tool()`/`guard_node()` use (it only needs the opposite bridging direction, via
+`asyncio.to_thread`) — unaffected by the bug found during the LangGraph fixture's live-test, and
+this run confirmed that directly: all three outcomes passed cleanly on the first attempt, no
+fix needed here.
+
+**All four supported profiles now have a self-test fixture, and all four have now been
+live-tested against a real local `agf-runtime`** (FastAPI/MCP, A2A, LangGraph, OpenAI Agents
+SDK) — the LangGraph pass surfaced and fixed a real `agf-sdk` bug affecting `guard_tool()` too,
+documented above.
+
+**Real target-repo validation completed 2026-08-27** —
+[jawwad-ali/ai-customer-support-agent](https://github.com/jawwad-ali/ai-customer-support-agent)
+(10 stars, 4 forks, 73 commits, 258 automated tests — real, independently built, not an official
+OpenAI tutorial; the OpenAI Agents SDK equivalent of PyMCP-FS/`customer-support-chatbot`/
+`fastapi-langgraph-agent-production-ready-template`'s role for the other three profiles).
+Genuinely different shape from the LangGraph target: real async, DB-mutating `@function_tool`s
+(`create_ticket`/`update_ticket` — actual `INSERT`/`UPDATE` against Postgres inside a
+transaction) and — unlike the LangGraph target's real JWT auth — **this repo has no
+authentication or authorization anywhere** (confirmed: no `Depends(...)`, no session handling on
+`/api/chat` or the Gmail/WhatsApp webhook routes; the README itself lists multi-tenancy/auth as a
+future improvement). Closer in spirit to PyMCP-FS's original "real, ungoverned" finding than the
+LangGraph target's richer-but-still-gapped case. Classify correctly matched on real signals
+against previously-unseen code. **No new architectural finding this time** — confirmed, not
+assumed: this repo's shape (one `Agent` + several independent `@function_tool`s wrapping real DB
+writes, each taking `ctx: RunContextWrapper[AgentContext]` as its first param) is exactly what
+`implement-openai-agents.md` already documents. The one thing this session's own fixture/unit
+tests had never exercised — `guard_function_tool` wrapping a tool whose first param is
+`ctx: RunContextWrapper[...]` rather than a plain typed arg — was verified directly in isolation
+before finalizing the diff: worked cleanly, app context passed through untouched, `decide()`
+called correctly, `tool.name` preserved. Step 5 plan: `guard_function_tool` on `create_ticket`
+and `update_ticket` (2 of 11 tools — a representative subset, not every gap, same as every other
+validation's scope). Step 6 applied cleanly to a throwaway clone (new branch, no commit, only
+`agent/tools/ticket.py` + a new `scripts/agf_enroll.py` touched). Step 7 reported PARTIAL — Actor
+scored Missing/static (this codebase has no per-caller identity anywhere, not even the weaker
+"Partial" every fixture defaulted to), Deny-path/Revocation correctly BLOCKED per Step 0 (no
+live credential configured for this validation). Nothing pushed to the third-party repo. **All
+four supported profiles are now validated to the same three-tier standard** (fixture self-test,
+live-runtime test, real third-party target-repo validation) — this closes out the validation arc
+for every profile this skill supports at that time.
+
+## AWS Lambda profile fixture
+
+`assets/fixtures/lambda-support-agent/` is the fifth-profile equivalent, and the only one where
+no new `agf-sdk` code was needed at all — `guard_tool()` (the same primitive the FastAPI/MCP
+profile uses) already works unmodified on a raw Lambda handler. Deliberately three **separate**
+handler functions, not three actions behind one entrypoint — that's Lambda's real deployment
+unit (one function per handler), unlike every other profile's single-process shape. Same
+three-gap-class shape as every other fixture: `search_order` (no guard), `update_ticket` (ad-hoc
+check against a plain event field an API Gateway authorizer might set, not AGF-backed),
+`issue_refund` (`@guard_tool(..., chain=[])` applied — the same structurally-present-but-
+non-functional empty-chain trap as every other fixture's `issue_refund`). Run the same 0-6
+checklist against it when changing anything in `profile-aws-lambda.md`/`implement-aws-lambda.md`.
+
+**Run 2026-08-27** (manual — no `claude` CLI available in this session, same limitation every
+other fixture build hit): confirmed the fixture imports and behaves correctly against the real
+installed `agf-sdk`, invoked exactly the way the real `awslambdaric` runtime calls a handler
+(positional, synchronous, using a real `awslambdaric.lambda_context.LambdaContext`, not a fake) —
+`search_order`/`update_ticket` behaved as expected, and `issue_refund` correctly attempted a real
+network call and failed at auth (no live credential configured, matching Step 0 BLOCKED — this is
+actually a stronger confirmation than the other profiles' fixture builds got, since it proves the
+wiring reaches a real endpoint rather than just constructing cleanly). No bugs found in
+`profile-aws-lambda.md`/`implement-aws-lambda.md` themselves. Applied the `implement-aws-lambda.md`
+recipe by hand to a throwaway copy (a new `scripts/agf_enroll.py`, `handlers.py` rewritten with
+`chain_provider=`/`validate_execution=True`/`report_outcome=True` on all three handlers): every
+cited symbol confirmed to import and match its real signature, and the regression check matched
+`expected-gaps.md`'s post-implementation table exactly for all three handlers — no over- or
+under-crediting. **Not done in this run**: no live local `agf-runtime` call and no real-target-
+repo validation against a genuine AWS Lambda deployment — both deliberately deferred, same
+pacing as every other profile's build (profile+implement+fixture first; live-test and real-repo
+validation are separate, smaller follow-on steps if wanted next).
+
+**All five supported profiles now have a self-test fixture.**

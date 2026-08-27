@@ -82,4 +82,23 @@ signature, and the regression check (re-deriving verdicts from the implemented c
 under-crediting. **Not done in this run**: no live local `agf-runtime` was stood up, so this
 tests that the recipe is syntactically/semantically correct against real installed SDKs, not
 that a live `decide()`/`validate_execution()` call actually succeeds end-to-end the way the MCP
-profile's pattern was separately live-verified. That's the next real gap for this profile.
+profile's pattern was separately live-verified.
+
+**Live-tested 2026-08-26** against a real local `agf-runtime` (Docker Postgres+OPA, real
+migrations, real uvicorn) — closing the gap above. Confirmed real DENY (unenrolled agent,
+identity-based hard denial) and, more valuably, surfaced a genuine third outcome this recipe
+hadn't accounted for: a freshly-enrolled agent's first action commonly gets `REVIEW_REQUIRED`
+under this environment's default risk config (`DEFAULT_RISK=50` + zero trust from a brand-new
+self-signed chain crosses the ≥70 threshold) — **not transient**, live-confirmed that approving
+the resulting `approval_request_id` neither retroactively unblocks that artifact_id
+(`validate_execution()` correctly 400s on it) nor changes a later fresh `decide()` call's risk
+scoring. `implement-a2a.md`'s original `execute()` example didn't catch
+`AGFReviewRequiredError` at all — would have propagated as an uncaught exception (the framework
+turns that into a generic `TASK_STATE_ERROR`) instead of the real, purpose-built
+`TASK_STATE_AUTH_REQUIRED` the `AgentExecutor` interface actually defines for this. Fixed using
+the real, verified `TaskUpdater.requires_auth()` helper. This is exactly the kind of gap live
+self-testing exists to catch — a fixture/syntax-level pass alone wouldn't have surfaced it, since
+`REVIEW_REQUIRED` only appears from a real runtime's actual risk-scoring pipeline.
+
+Remaining real gap for this profile: no real target-repo validation (an A2A equivalent of
+PyMCP-FS) has been run yet.

@@ -32,7 +32,11 @@ a decorator:
 - `agf.AGFClient.decide(action_type, resource, *, chain=None, audience="agf", context=None) -> DecisionResult`
   (`agf-sdk/agf/client.py`, **async** — the same client `guard_tool()` uses internally) — called
   at the top of `execute()`, before any of the agent's real task logic runs. Raises
-  `AGFDeniedError` on DENY. `execute()` is a fixed-name class method with a fixed
+  `AGFDeniedError` on DENY **and `AGFReviewRequiredError` on REVIEW_REQUIRED** — live-confirmed
+  a real, non-rare outcome for a freshly-enrolled agent under default risk config, not just a
+  theoretical third case. Map it to `TaskUpdater.requires_auth()` (real `TASK_STATE_AUTH_REQUIRED`
+  transition), never let it propagate uncaught — see `references/implement-a2a.md`.
+  `execute()` is a fixed-name class method with a fixed
   `(context, event_queue)` signature, so `guard_tool()`'s per-tool decorator (built around
   wrapping an arbitrarily-named function and defaulting `resource=` to its name) doesn't fit
   here — direct `decide()` calls inside the function body are already this skill's documented

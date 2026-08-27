@@ -17,6 +17,26 @@ which is `async def` by contract, is a real correctness problem for a server han
 tasks. Fixed below by using the *async* `AGFClient` directly, the same object the MCP profile's
 `guard_tool()` already uses internally — one real async surface, not two.
 
+**Live-tested 2026-08-26 against a real local `agf-runtime`** (Docker Postgres+OPA, real
+migrations, real uvicorn) — this run surfaced a second real gap, fixed below: `decide()` can
+raise **`AGFReviewRequiredError`**, not just `AGFDeniedError`/success. Under this environment's
+*default* risk config (`DEFAULT_RISK=50`, no custom `risk_config.yaml`), a freshly-enrolled
+agent's very first action — regardless of how low-risk it actually is — commonly comes back
+`REVIEW_REQUIRED`, because a brand-new self-signed chain carries no persistent trust yet
+(`trust_score≈0`), and `50 + environmental_risk × trust_weight(0)` crosses the ≥70
+`REVIEW_REQUIRED` threshold easily. Live-confirmed this is **not transient**: approving the
+resulting `approval_request_id` via `POST /v1/approvals/{id}/approve` does not retroactively
+change the original Decision (`validate_execution()` correctly 400s on a `REVIEW_REQUIRED`
+artifact_id — "not an ALLOW/ALLOW_WITH_CAUTION decision") and does **not** affect a later fresh
+`decide()` call's risk scoring either (confirmed: a second `decide()` call for the identical
+agent/action/chain shape came back `REVIEW_REQUIRED` again). The original version of this file's
+`execute()` example didn't catch `AGFReviewRequiredError` at all — it would have propagated as
+an *uncaught* exception, which the real `AgentExecutor.execute()` contract says the framework
+turns into a generic `TASK_STATE_ERROR`, not the correct, purpose-built
+`TaskState.TASK_STATE_AUTH_REQUIRED` the interface actually defines for exactly this case. Fixed
+below using the real, verified `TaskUpdater.requires_auth()` helper
+(`a2a.server.tasks.TaskUpdater`).
+
 # Implement (Python + A2A profile)
 
 ## Real API surface (verified against installed agf-sdk + a2a-sdk source, do not deviate)
@@ -39,6 +59,7 @@ def build_self_signed_chain(private_key_pem: str, agent_id: str, action: str, au
 # a2a-sdk (real, verified against the installed package)
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events.event_queue import EventQueue
+from a2a.server.tasks import TaskUpdater
 
 class AgentExecutor(ABC):
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None: ...
@@ -47,6 +68,11 @@ class AgentExecutor(ABC):
 # RequestContext real properties (agf's own auth model, distinct from A2A's own ServerCallContext.user):
 #   context.call_context.user -> User (.is_authenticated: bool, .user_name: str), default UnauthenticatedUser()
 #   context.get_user_input(), context.task_id, context.context_id, context.current_task
+
+# TaskUpdater(event_queue, task_id, context_id) -- the real, idiomatic way to publish a status
+# transition. .requires_auth(message=None) is the exact real method for the REVIEW_REQUIRED
+# case below (publishes TaskState.TASK_STATE_AUTH_REQUIRED); it does NOT raise, and does NOT
+# by itself stop `execute()` -- you still need to `return` after calling it.
 ```
 
 Build a fresh `chain=` per call via `build_self_signed_chain()` — same reason as the MCP
@@ -79,7 +105,7 @@ After:
 ```python
 import logging
 from agf.client import AGFClient
-from agf.exceptions import AGFDeniedError
+from agf.exceptions import AGFDeniedError, AGFReviewRequiredError
 from agf.keys import build_self_signed_chain
 
 logger = logging.getLogger(__name__)
@@ -89,6 +115,7 @@ class RefundAgentExecutor(AgentExecutor):
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         action = "task:process_refund"
         chain = build_self_signed_chain(AGF_PRIVATE_KEY_PEM, AGF_AGENT_ID, action, "agf")
+        updater = TaskUpdater(event_queue, context.task_id, context.context_id)
         try:
             result = await client.decide(
                 action_type=action,
@@ -102,6 +129,18 @@ class RefundAgentExecutor(AgentExecutor):
             )
         except AGFDeniedError as exc:
             raise PermissionError(f"AGF denied this task: {exc}") from exc
+        except AGFReviewRequiredError:
+            # Live-confirmed real outcome, not a hypothetical: a freshly-enrolled agent
+            # commonly gets this on its very first action under default risk config. This is
+            # the correct A2A-native way to surface it -- do NOT let this propagate as an
+            # uncaught exception (the framework would turn that into a generic
+            # TASK_STATE_ERROR, losing the actual meaning). Approving the resulting
+            # approval_request_id does not retroactively unblock this specific artifact_id --
+            # live-confirmed validate_execution() correctly 400s on it, and a later decide()
+            # for the same shape is not automatically ALLOW either. The real next step is the
+            # target's own workflow: wait for approval, then have the caller retry the task.
+            await updater.requires_auth()
+            return
 
         validation = await client.validate_execution(result.artifact_id)
         if validation.result == "invalid":

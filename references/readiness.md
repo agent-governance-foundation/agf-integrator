@@ -12,7 +12,7 @@ that gap gets surfaced up front instead of discovered awkwardly at the end.
 
 ## What to check (all static/config inspection — never touch a live network call here)
 
-- **AGF SDK**: is `agf-sdk` already a dependency of the target repo (`requirements.txt`,
+- **AXIS SDK**: is `agf-sdk` already a dependency of the target repo (`requirements.txt`,
   `pyproject.toml`, an actual `import agf`)? If not, note that Step 6 will add it.
 - **AGF Runtime — base URL**: is there an existing env var or config value for where
   `agf-runtime` lives (commonly `AGF_BASE_URL`, but check for whatever name the repo already
@@ -55,7 +55,7 @@ that gap gets surfaced up front instead of discovered awkwardly at the end.
 ```
 AGF Configuration Check
 
-AGF SDK:
+AXIS SDK:
   [check-or-x] Installed | Not installed — Step 6 will add it if a plan is approved
 
 AGF Runtime:
